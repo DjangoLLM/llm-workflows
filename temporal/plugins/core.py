@@ -3,8 +3,6 @@ from __future__ import annotations
 from temporalio.activity import _Definition as ActivityDefinition
 
 from agents.temporal.activities import (
-    categorization_step_activity,
-    correction_step_activity,
     create_pipeline_run_activity,
     get_registered_step_activities,
     handle_meeting_notes_activity,
@@ -13,8 +11,6 @@ from agents.temporal.activities import (
     handle_status_update_activity,
     mark_pipeline_failed_activity,
     mark_pipeline_success_activity,
-    matching_step_activity,
-    segmentation_step_activity,
 )
 from agents.temporal.worker_plugins import TemporalActivityRegistration, TemporalWorkerPlugin
 
@@ -24,22 +20,6 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
         TemporalActivityRegistration(
             activity_name="agents.create_pipeline_run_activity",
             activity_callable=create_pipeline_run_activity,
-        ),
-        TemporalActivityRegistration(
-            activity_name="agents.correction_step_activity",
-            activity_callable=correction_step_activity,
-        ),
-        TemporalActivityRegistration(
-            activity_name="agents.categorization_step_activity",
-            activity_callable=categorization_step_activity,
-        ),
-        TemporalActivityRegistration(
-            activity_name="agents.segmentation_step_activity",
-            activity_callable=segmentation_step_activity,
-        ),
-        TemporalActivityRegistration(
-            activity_name="agents.matching_step_activity",
-            activity_callable=matching_step_activity,
         ),
         TemporalActivityRegistration(
             activity_name="agents.mark_pipeline_success_activity",

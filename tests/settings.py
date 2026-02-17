@@ -46,7 +46,6 @@ MIGRATION_MODULES = {
 # Keep tests isolated from project-specific registration side effects.
 AGENTS_STEP_REGISTRARS: list[str] = []
 AGENTS_TEMPORAL_PLUGIN_MODULES: list[str] = []
-AGENTS_TRANSCRIPT_READY_CALLBACK = "agents.tests.support.helpers.mock_transcript_callback"
 
 TEMPORAL_SERVER_URL = os.environ.get("TEMPORAL_SERVER_URL", "localhost:7233")
 TEMPORAL_TASK_QUEUE = os.environ.get("TEMPORAL_TASK_QUEUE", "ai-pipeline-queue")

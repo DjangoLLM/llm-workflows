@@ -67,7 +67,7 @@ def test_generated_activity_dispatches_step_key(monkeypatch) -> None:
     assert calls[0]["step_key"] == "custom.dispatch"
 
 
-def test_get_registered_step_activities_filters_legacy(monkeypatch) -> None:
+def test_get_registered_step_activities_includes_all_steps(monkeypatch) -> None:
     monkeypatch.setattr(
         "agents.temporal.activities.StepCatalog.list_step_keys",
         lambda: ["correction", "custom.one", "matching", "custom.two"],
@@ -87,30 +87,8 @@ def test_get_registered_step_activities_filters_legacy(monkeypatch) -> None:
 
     result = activities.get_registered_step_activities()
 
-    assert len(result) == 2
-    assert generated == ["custom.one", "custom.two"]
-
-
-def test_legacy_step_wrappers_forward_expected_keys(monkeypatch) -> None:
-    calls: list[tuple[str, str]] = []
-
-    def fake_execute(run_id, pipeline_name, step_key, order_index, payload):
-        calls.append((pipeline_name, step_key))
-        return {"ok": step_key}
-
-    monkeypatch.setattr("agents.temporal.activities.execute_pipeline_step_activity", fake_execute)
-
-    activities.correction_step_activity("r", "p", 1, {})
-    activities.categorization_step_activity("r", "p", 2, {})
-    activities.segmentation_step_activity("r", "p", 3, {})
-    activities.matching_step_activity("r", "p", 4, {})
-
-    assert calls == [
-        ("p", "correction"),
-        ("p", "categorization"),
-        ("p", "segmentation"),
-        ("p", "matching"),
-    ]
+    assert len(result) == 4
+    assert set(generated) == {"correction", "custom.one", "matching", "custom.two"}
 
 
 def test_mark_pipeline_success_and_failure_delegate(monkeypatch) -> None:

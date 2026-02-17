@@ -44,13 +44,6 @@ def execute_pipeline_step_activity(
 
 _TRANSFORMED_STEP_ACTIVITIES: Dict[str, Callable[..., dict]] = {}
 
-_LEGACY_STEP_KEYS = {
-    "categorization",
-    "correction",
-    "segmentation",
-    "matching",
-}
-
 
 def _activity_safe_step_name(step_key: str) -> str:
     """
@@ -102,41 +95,15 @@ def transform_step_to_activity(step_key: str) -> Callable[..., dict]:
 
 def get_registered_step_activities() -> list[Callable[..., dict]]:
     """
-    Return transformed activities for registered non-legacy steps.
-
-    Legacy wrappers remain for existing workflow compatibility.
+    Return transformed activities for registered steps.
 
     :return: List of activity callables.
     """
     activities: list[Callable[..., dict]] = []
     for step_key in StepCatalog.list_step_keys():
-        if step_key in _LEGACY_STEP_KEYS:
-            continue
         activities.append(transform_step_to_activity(step_key))
     return activities
 
-
-@activity.defn(name="agents.categorization_step_activity")
-def categorization_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Execute the categorization step via the generic runner."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "categorization", order_index, payload)
-
-
-@activity.defn(name="agents.correction_step_activity")
-def correction_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Execute the correction step via the generic runner."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "correction", order_index, payload)
-
-
-@activity.defn(name="agents.segmentation_step_activity")
-def segmentation_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Execute the segmentation step via the generic runner."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "segmentation", order_index, payload)
-
-@activity.defn(name="agents.matching_step_activity")
-def matching_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Execute the matching step via the generic runner."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "matching", order_index, payload)
 
 @activity.defn(name="agents.mark_pipeline_success_activity")
 def mark_pipeline_success_activity(run_id: str, pipeline_name: str) -> None:

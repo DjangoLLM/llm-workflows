@@ -598,6 +598,165 @@ class GeminiCLIWrapper(BaseCLIWrapper):
         return None
 
 
+class PiCLIWrapper(BaseCLIWrapper):
+    """
+    Wrapper for the Pi CLI in RPC mode.
+    
+    Handles provider/model selection, thinking levels, and JSON event streaming.
+    """
+    
+    def __init__(
+        self,
+        provider: str = "google-antigravity",
+        model: str = "gemini-3-flash",
+        thinking_level: str = "medium",
+        tools_enabled: bool = True,
+        working_dir: Optional[Path] = None,
+        **kwargs
+    ):
+        """
+        Initialize Pi CLI wrapper.
+        
+        :param provider: AI provider (e.g., 'gemini', 'anthropic').
+        :param model: Specific model ID (e.g., 'gemini-3-flash').
+        :param thinking_level: 'off'|'minimal'|'low'|'medium'|'high'|'xhigh'.
+        :param tools_enabled: Whether to enable tools.
+        :param working_dir: Working directory.
+        """
+        super().__init__(
+            working_dir=working_dir,
+            **kwargs
+        )
+        self.provider = provider
+        self.model = model
+        self.thinking_level = thinking_level
+        self.tools_enabled = tools_enabled
+
+    def build_command(
+        self,
+        prompt: str,
+        output_format: OutputFormat,
+        **kwargs
+    ) -> List[str]:
+        """
+        Construct 'pi' command arguments for RPC mode.
+        
+        :param prompt: The initial prompt text (handled via stdin in RPC).
+        :return: Command list.
+        """
+        # Base command for RPC mode without session
+        #
+        cmd = ["pi", "--mode", "rpc", "--no-session"]
+        
+        # Add configuration flags
+        #
+        if self.provider:
+            cmd.extend(["--provider", self.provider])
+        
+        if self.model:
+            cmd.extend(["--model", self.model])
+            
+        if self.thinking_level:
+            cmd.extend(["--thinking", self.thinking_level])
+            
+        # Handle tools mode
+        #
+        if self.tools_enabled:
+            cmd.append("--tools")
+        else:
+            cmd.append("--no-tools")
+            
+        return cmd
+
+    def parse_event(self, line: str) -> Optional[CLIEvent]:
+        """
+        Parse Pi RPC JSON events.
+        """
+        try:
+            data = json.loads(line)
+            event_type = data.get("type", "unknown")
+            
+            # Map Pi events to unified CLIEvent types
+            #
+            if event_type == "message_update":
+                # Pi sends partial updates
+                #
+                delta = data.get("assistantMessageEvent", {})
+                if delta.get("type") == "text_delta":
+                    # Create a content event for the text chunk
+                    #
+                    return CLIEvent(
+                        type="content",
+                        data={"content": delta.get("delta", "")},
+                        raw=line,
+                        timestamp=time.time()
+                    )
+            elif event_type == "agent_end":
+                return CLIEvent(
+                    type="done",
+                    data=data,
+                    raw=line,
+                    timestamp=time.time()
+                )
+            
+            # Return other events as-is
+            #
+            return CLIEvent(
+                type=event_type,
+                data=data,
+                raw=line,
+                timestamp=time.time()
+            )
+            
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse JSON: {line}")
+            return None
+
+    def _extract_usage(self, events: List[CLIEvent]) -> Optional[Dict[str, Any]]:
+        """
+        Extract usage stats if available in agent_end/done event.
+        """
+        for event in reversed(events):
+            if event.type == "done" and "usage" in event.data:
+                return event.data["usage"]
+        return None
+
+    async def execute(
+        self,
+        prompt: str,
+        output_format: OutputFormat = OutputFormat.STREAM_JSON,
+        on_event: Optional[Callable[[CLIEvent], None]] = None,
+        stdin_data: Optional[str] = None,
+        **kwargs
+    ) -> CLIResponse:
+        """
+        Execute Pi command.
+        
+        Pi in RPC mode expects directives via stdin:
+        {"type": "prompt", "message": "..."}
+        """
+        # Construct the JSON command to send to Pi's stdin
+        #
+        rpc_command = json.dumps({
+            "type": "prompt",
+            "message": prompt
+        }) + "\n"
+        
+        # If stdin_data is provided (e.g. piped content), append it
+        #
+        final_stdin = rpc_command
+        if stdin_data:
+            final_stdin += stdin_data
+            
+        return await super().execute(
+            prompt,
+            output_format,
+            on_event,
+            stdin_data=final_stdin,
+            **kwargs
+        )
+
+
 class WorkflowSession:
     """
     Manages multi-step CLI workflows by tracking history and state.

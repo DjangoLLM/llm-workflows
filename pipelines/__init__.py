@@ -1,3 +1,0 @@
-"""
-Pipeline registrations for agents.
-"""
