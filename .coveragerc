@@ -1,0 +1,18 @@
+[run]
+branch = True
+source =
+    agents
+omit =
+    agents/migrations/*
+    agents/build/*
+    agents/tests/*
+    agents/freedom_agents.egg-info/*
+    agents/admin.py
+    agents/urls.py
+    agents/views/*
+    agents/pipelines/*
+
+[report]
+skip_covered = False
+show_missing = True
+precision = 2
