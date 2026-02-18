@@ -1,9 +1,13 @@
+# General
+*.log
+*.sqlite3
+.DS_Store
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
+*.so
 .Python
 build/
 develop-eggs/
@@ -23,24 +27,30 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# Django
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static_root/
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Unit test / coverage reports
+# Testing / Coverage
 htmlcov/
 .tox/
 .nox/
 .coverage
 .coverage.*
 .cache
-tests/artifacts/
 nosetests.xml
 coverage.xml
 *.cover
@@ -52,43 +62,9 @@ cover/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Editors
+# IDEs / Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+GEMINI.md
