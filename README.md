@@ -54,3 +54,6 @@ class MyStep(PipelineStep):
         # custom logic or agent delegation
         return {"processed": True}
 ```
+
+---
+Built with love in Bangalore!
