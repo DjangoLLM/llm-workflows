@@ -138,3 +138,22 @@ async def handle_status_update_activity(run_id: str, payload: dict) -> dict:
 async def handle_random_brain_dump_activity(run_id: str, payload: dict) -> dict:
     logger.info(f"Stub handler called for Random Brain Dump (Run: {run_id})")
     return {"status": "stub_success", "handler": "handle_random_brain_dump"}
+
+
+# Explicit stubs for common pipeline steps to satisfy static imports in consumer workflows
+@activity.defn(name="agents.pipeline_step.correction")
+def correction_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    """Stub activity for correction pipeline step."""
+    return execute_pipeline_step_activity(run_id, pipeline_name, "correction", order_index, payload)
+
+
+@activity.defn(name="agents.pipeline_step.segmentation")
+def segmentation_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    """Stub activity for segmentation pipeline step."""
+    return execute_pipeline_step_activity(run_id, pipeline_name, "segmentation", order_index, payload)
+
+
+@activity.defn(name="agents.pipeline_step.categorization")
+def categorization_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    """Stub activity for categorization pipeline step."""
+    return execute_pipeline_step_activity(run_id, pipeline_name, "categorization", order_index, payload)

@@ -11,6 +11,9 @@ from agents.temporal.activities import (
     handle_status_update_activity,
     mark_pipeline_failed_activity,
     mark_pipeline_success_activity,
+    correction_step_activity,
+    segmentation_step_activity,
+    categorization_step_activity,
 )
 from agents.temporal.worker_plugins import TemporalActivityRegistration, TemporalWorkerPlugin
 
@@ -44,6 +47,18 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
         TemporalActivityRegistration(
             activity_name="agents.handle_random_brain_dump_activity",
             activity_callable=handle_random_brain_dump_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.pipeline_step.correction",
+            activity_callable=correction_step_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.pipeline_step.segmentation",
+            activity_callable=segmentation_step_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.pipeline_step.categorization",
+            activity_callable=categorization_step_activity,
         ),
     ]
 
