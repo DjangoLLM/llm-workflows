@@ -111,8 +111,4 @@ def test_mark_pipeline_success_and_failure_delegate(monkeypatch) -> None:
     assert calls == [("success", "run-1"), ("failure", "run-2:err")]
 
 
-def test_stub_handlers_return_success_payloads() -> None:
-    assert asyncio.run(activities.handle_meeting_notes_activity("run", {}))["status"] == "stub_success"
-    assert asyncio.run(activities.handle_module_creation_activity("run", {}))["handler"] == "handle_module_creation"
-    assert asyncio.run(activities.handle_status_update_activity("run", {}))["handler"] == "handle_status_update"
-    assert asyncio.run(activities.handle_random_brain_dump_activity("run", {}))["handler"] == "handle_random_brain_dump"
+

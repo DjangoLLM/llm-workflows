@@ -80,8 +80,8 @@ PYTEST_CMD=(
   --with dj-database-url
   --with psycopg2-binary
   python -m pytest
-  -c "$AGENTS_DIR/pytest.ini"
-  "$AGENTS_DIR/tests"
+  -c "pytest.ini"
+  "tests"
 )
 
 if [[ "$CI_MODE" -eq 1 ]]; then
@@ -93,10 +93,13 @@ if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
 fi
 
 printf "Running pytest (%s mode)\n" "$( [[ "$CI_MODE" -eq 1 ]] && echo ci || echo local )"
+# Enter the actual project directory so uv uses the correct pyproject.toml
+cd "$AGENTS_DIR"
+
 "${PYTEST_CMD[@]}"
 
-uv run python "$AGENTS_DIR/tests/verify_coverage.py" \
-  "$ARTIFACTS_DIR/coverage.json" \
+uv run python tests/verify_coverage.py \
+  agents/tests/artifacts/coverage.json \
   --line 90 \
   --branch 80
 

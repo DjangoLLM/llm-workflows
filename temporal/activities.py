@@ -8,6 +8,9 @@ from agents.step_catalog import StepCatalog
 
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# Pipeline Lifecycle Activities
+# ==============================================================================
 
 @activity.defn(name="agents.create_pipeline_run_activity")
 def create_pipeline_run_activity(pipeline_name: str, payload: dict) -> str:
@@ -17,6 +20,10 @@ def create_pipeline_run_activity(pipeline_name: str, payload: dict) -> str:
     logger.info(f"Created PipelineRun {run_id} via {pipeline_name} Service")
     return run_id
 
+
+# ==============================================================================
+# Step Execution (Primary)
+# ==============================================================================
 
 @activity.defn(name="agents.execute_pipeline_step_activity")
 def execute_pipeline_step_activity(
@@ -116,44 +123,3 @@ def mark_pipeline_failed_activity(run_id: str, pipeline_name: str, error_message
     """Delegates failure marking to the Pipeline Service."""
     pipeline_cls = PipelineRegistry.get(pipeline_name)
     pipeline_cls.mark_failure(run_id, error=error_message)
-
-
-@activity.defn(name="agents.handle_meeting_notes_activity")
-async def handle_meeting_notes_activity(run_id: str, payload: dict) -> dict:
-    logger.info(f"Stub handler called for Meeting Notes (Run: {run_id})")
-    return {"status": "stub_success", "handler": "handle_meeting_notes"}
-
-
-@activity.defn(name="agents.handle_module_creation_activity")
-async def handle_module_creation_activity(run_id: str, payload: dict) -> dict:
-    logger.info(f"Stub handler called for Module Creation (Run: {run_id})")
-    return {"status": "stub_success", "handler": "handle_module_creation"}
-
-@activity.defn(name="agents.handle_status_update_activity")
-async def handle_status_update_activity(run_id: str, payload: dict) -> dict:
-    logger.info(f"Stub handler called for Status Update (Run: {run_id})")
-    return {"status": "stub_success", "handler": "handle_status_update"}
-
-@activity.defn(name="agents.handle_random_brain_dump_activity")
-async def handle_random_brain_dump_activity(run_id: str, payload: dict) -> dict:
-    logger.info(f"Stub handler called for Random Brain Dump (Run: {run_id})")
-    return {"status": "stub_success", "handler": "handle_random_brain_dump"}
-
-
-# Explicit stubs for common pipeline steps to satisfy static imports in consumer workflows
-@activity.defn(name="agents.pipeline_step.correction")
-def correction_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Stub activity for correction pipeline step."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "correction", order_index, payload)
-
-
-@activity.defn(name="agents.pipeline_step.segmentation")
-def segmentation_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Stub activity for segmentation pipeline step."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "segmentation", order_index, payload)
-
-
-@activity.defn(name="agents.pipeline_step.categorization")
-def categorization_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
-    """Stub activity for categorization pipeline step."""
-    return execute_pipeline_step_activity(run_id, pipeline_name, "categorization", order_index, payload)

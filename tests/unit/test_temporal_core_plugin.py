@@ -24,4 +24,4 @@ def test_core_plugin_includes_static_and_generated_activities(monkeypatch) -> No
     assert plugin.plugin_slug == "agents"
     static_names = {registration.activity_name for registration in plugin.activities}
     assert "agents.create_pipeline_run_activity" in static_names
-    assert len(plugin.activities) >= 11
+    assert len(plugin.activities) >= 6
