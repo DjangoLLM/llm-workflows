@@ -123,3 +123,40 @@ def mark_pipeline_failed_activity(run_id: str, pipeline_name: str, error_message
     """Delegates failure marking to the Pipeline Service."""
     pipeline_cls = PipelineRegistry.get(pipeline_name)
     pipeline_cls.mark_failure(run_id, error=error_message)
+
+
+@activity.defn(name="agents.handle_meeting_notes_activity")
+def handle_meeting_notes_activity(run_id: str, payload: dict) -> dict:
+    """Handle meeting notes category by marking as processed."""
+    logger.info(f"Handled meeting notes for pipeline run {run_id}")
+    return {"status": "processed", "category": "meeting_notes"}
+
+
+@activity.defn(name="agents.handle_random_brain_dump_activity")
+def handle_random_brain_dump_activity(run_id: str, payload: dict) -> dict:
+    """Handle random brain dump category by marking as processed."""
+    logger.info(f"Handled random brain dump for pipeline run {run_id}")
+    return {"status": "processed", "category": "random_brain_dump"}
+
+
+# Explicitly define common step activities to support static imports in workflows.
+
+@activity.defn(name="agents.pipeline_step.correction")
+def correction_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    return execute_pipeline_step_activity(run_id, pipeline_name, "correction", order_index, payload)
+
+
+@activity.defn(name="agents.pipeline_step.categorization")
+def categorization_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    return execute_pipeline_step_activity(run_id, pipeline_name, "categorization", order_index, payload)
+
+
+@activity.defn(name="agents.pipeline_step.segmentation")
+def segmentation_step_activity(run_id: str, pipeline_name: str, order_index: int, payload: dict) -> dict:
+    return execute_pipeline_step_activity(run_id, pipeline_name, "segmentation", order_index, payload)
+
+
+# Populate module with other registered step activities for static import support.
+for _step_activity in get_registered_step_activities():
+    if _step_activity.__name__ not in globals():
+        globals()[_step_activity.__name__] = _step_activity

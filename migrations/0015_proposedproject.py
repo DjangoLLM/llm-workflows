@@ -8,7 +8,7 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('transcribers', '0002_transcript_audio_file_name'),
+        ('transcripts', '0001_initial'),
         ('agents', '0014_delete_proposedproject'),
     ]
 
@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(choices=[('NEW', 'New'), ('APPROVED', 'Approved'), ('SYNCING', 'Syncing'), ('SYNCED', 'Synced'), ('REJECTED', 'Rejected')], default='NEW', max_length=16)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('transcript', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='proposed_projects_legacy', to='transcribers.transcript')),
+                ('transcript', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='proposed_projects_legacy', to='transcripts.transcript')),
             ],
             options={
                 'ordering': ['-created_at'],

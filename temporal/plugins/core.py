@@ -5,6 +5,8 @@ from temporalio.activity import _Definition as ActivityDefinition
 from agents.temporal.activities import (
     create_pipeline_run_activity,
     get_registered_step_activities,
+    handle_meeting_notes_activity,
+    handle_random_brain_dump_activity,
     mark_pipeline_failed_activity,
     mark_pipeline_success_activity,
     execute_pipeline_step_activity,
@@ -29,6 +31,14 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
         TemporalActivityRegistration(
             activity_name="agents.execute_pipeline_step_activity",
             activity_callable=execute_pipeline_step_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.handle_meeting_notes_activity",
+            activity_callable=handle_meeting_notes_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.handle_random_brain_dump_activity",
+            activity_callable=handle_random_brain_dump_activity,
         ),
     ]
 

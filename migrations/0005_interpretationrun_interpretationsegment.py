@@ -8,7 +8,7 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('transcribers', '0002_transcript_audio_file_name'),
+        ('transcripts', '0001_initial'),
         ('agents', '0004_pipelinestep_parents'),
     ]
 
@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(choices=[('PENDING', 'Pending'), ('SUCCEEDED', 'Succeeded'), ('FAILED', 'Failed')], default='PENDING', max_length=16)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('pipeline_run', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='interpretations', to='agents.pipelinerun')),
-                ('transcript', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='interpretations', to='transcribers.transcript')),
+                ('transcript', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='interpretations', to='transcripts.transcript')),
             ],
             options={
                 'ordering': ['-created_at'],

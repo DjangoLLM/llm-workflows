@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "freedom-agents"
-version = "0.1.1"
+version = "0.1.2"
 description = "Reusable Django app for core agent runtime and pipeline execution."
 readme = { text = "Core reusable app for agent orchestration and pipeline execution.", content-type = "text/plain" }
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ packages = [
     "agents.management.commands",
     "agents.migrations",
     "agents.temporal",
+    "agents.temporal.plugins",
 ]
 
 [tool.setuptools.package-dir]
