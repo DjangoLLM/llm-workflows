@@ -1,11 +1,33 @@
 import logging
 from abc import ABC, abstractmethod
+import dataclasses
+import enum
+from collections.abc import Mapping as ABCMapping, Sequence as ABCSequence
+from datetime import date, datetime
 from typing import Tuple, Dict, Type, Any, Optional
 
 from agents.agent import Agent, AgentConfig, ManagedAgent
 from agents.models import PipelineRun, PipelineStep as PipelineStepModel, PipelineStatus, AgentRun, AgentRunStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe_value(value: Any) -> Any:
+    if dataclasses.is_dataclass(value):
+        return _json_safe_value(dataclasses.asdict(value))
+    if hasattr(value, "model_dump"):
+        return _json_safe_value(value.model_dump())
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, enum.Enum):
+        return value.value
+    if isinstance(value, ABCMapping):
+        return {str(key): _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_json_safe_value(item) for item in value]
+    return value
 
 
 class PipelineStep(ABC):
@@ -188,6 +210,7 @@ class PipelineStep(ABC):
             final_payload, _ = post_processed
         else:
             final_payload = post_processed
+        final_payload = _json_safe_value(final_payload)
 
         step_model.mark_finished(PipelineStatus.SUCCEEDED, output_payload=final_payload)
         return final_payload

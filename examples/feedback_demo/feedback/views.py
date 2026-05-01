@@ -1,0 +1,155 @@
+"""Views for the one-page feedback pipeline demo."""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from asgiref.sync import async_to_sync
+from django.conf import settings
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from temporalio.client import Client
+
+from agents.models import AgentRun, PipelineRun, PipelineStatus, PipelineStep
+
+from .pipelines import ANALYZE_STEP, FeedbackPipeline
+
+WORKFLOW_NAME = "feedback.pipeline.workflow"
+
+
+async def _start_feedback_workflow(run_id: str, text: str) -> None:
+    client = await Client.connect(settings.TEMPORAL_SERVER_URL)
+    await client.start_workflow(
+        WORKFLOW_NAME,
+        {"run_id": run_id, "payload": {"text": text}},
+        id=f"feedback-job-{uuid.uuid4()}",
+        task_queue=settings.TEMPORAL_TASK_QUEUE,
+    )
+
+
+def index(request: HttpRequest, run_id: str | None = None) -> HttpResponse:
+    run = None
+    if run_id:
+        run = PipelineRun.objects.filter(pk=run_id).first()
+        if run is None:
+            raise Http404("Pipeline run not found.")
+
+    return render(
+        request,
+        "feedback/index.html",
+        {
+            "run": run,
+            "status_url": reverse("feedback:run_status", args=[run.id]) if run else "",
+        },
+    )
+
+
+def start(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST":
+        return redirect("feedback:index")
+
+    feedback_text = request.POST.get("feedback_text", "").strip()
+    if not feedback_text:
+        return render(
+            request,
+            "feedback/index.html",
+            {
+                "error": "Enter feedback text before starting the pipeline.",
+                "submitted_text": request.POST.get("feedback_text", ""),
+            },
+            status=400,
+        )
+
+    run_id = FeedbackPipeline.create_run({"text": feedback_text})
+
+    try:
+        async_to_sync(_start_feedback_workflow)(run_id, feedback_text)
+    except Exception as exc:  # noqa: BLE001
+        run = PipelineRun.objects.get(pk=run_id)
+        run.mark_failed("start_workflow")
+        return render(
+            request,
+            "feedback/index.html",
+            {
+                "error": f"Could not start Temporal workflow: {exc}",
+                "run": run,
+                "status_url": reverse("feedback:run_status", args=[run.id]),
+                "submitted_text": feedback_text,
+            },
+            status=502,
+        )
+
+    return redirect("feedback:run_detail", run_id=run_id)
+
+
+def run_status(request: HttpRequest, run_id: str) -> JsonResponse:
+    run = PipelineRun.objects.filter(pk=run_id).first()
+    if run is None:
+        raise Http404("Pipeline run not found.")
+
+    steps = list(
+        PipelineStep.objects.filter(run=run)
+        .select_related("agent_run")
+        .order_by("order_index", "created_at")
+    )
+    final_step = next(
+        (
+            step
+            for step in reversed(steps)
+            if step.step_name == ANALYZE_STEP and step.status == PipelineStatus.SUCCEEDED
+        ),
+        None,
+    )
+    first_error = next((step.error_message for step in steps if step.error_message), None)
+
+    return JsonResponse(
+        {
+            "run": _serialize_run(run),
+            "steps": [_serialize_step(step) for step in steps],
+            "final_output": final_step.output_payload if final_step else None,
+            "error": first_error,
+            "is_terminal": run.status in {PipelineStatus.SUCCEEDED, PipelineStatus.FAILED},
+        }
+    )
+
+
+def _serialize_run(run: PipelineRun) -> dict[str, Any]:
+    return {
+        "id": str(run.id),
+        "pipeline_name": run.pipeline_name,
+        "status": run.status,
+        "current_step": run.current_step,
+        "root_payload": run.root_payload,
+        "created_at": run.created_at,
+        "updated_at": run.updated_at,
+    }
+
+
+def _serialize_step(step: PipelineStep) -> dict[str, Any]:
+    return {
+        "id": str(step.id),
+        "step_name": step.step_name,
+        "order_index": step.order_index,
+        "status": step.status,
+        "input_payload": step.input_payload,
+        "output_payload": step.output_payload,
+        "error_message": step.error_message,
+        "started_at": step.started_at,
+        "ended_at": step.ended_at,
+        "agent_run": _serialize_agent_run(step.agent_run) if step.agent_run else None,
+    }
+
+
+def _serialize_agent_run(agent_run: AgentRun) -> dict[str, Any]:
+    return {
+        "id": str(agent_run.id),
+        "agent_label": agent_run.agent_label,
+        "status": agent_run.status,
+        "input": agent_run.input,
+        "output": agent_run.output,
+        "error_message": agent_run.error_message,
+        "started_at": agent_run.started_at,
+        "ended_at": agent_run.ended_at,
+    }

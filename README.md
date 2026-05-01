@@ -25,100 +25,144 @@ AGENTS_TEMPORAL_PLUGIN_MODULES = [
 ]
 ```
 
-## Execution Model
+## Primitives and Architecture
 
-Temporal is the only documented workflow execution path for this package.
+This package provides a framework for building AI pipelines focused on observability and auditability. It mixes deterministic Python code with non-deterministic AI steps, while keeping an absolute database ledger of everything that happens. 
 
-Host applications define pipeline steps and concrete Temporal workflows. This package supplies the shared ledger models, step execution helpers, core Temporal activities, worker plugin loading, and the `run_temporal_worker` command.
+Before building a pipeline, it's helpful to understand the primitives of this project:
 
-The runtime shape is:
+### 1. `ManagedAgent`
+A `ManagedAgent` is a wrapper around an LLM based Agent (can do tool calls). It provides database persistence and state tracking (`PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`).
 
-- `Pipeline` and `PipelineStep` own ledger records and step execution.
-- `StepCatalog` registers executable step metadata.
-- `agents.temporal.activities` exposes core Temporal activities, including pipeline run creation, step execution, and success/failure marking.
-- `run_temporal_worker` starts a Temporal worker and loads core activities plus any configured host-app workflow plugins.
-- `AGENTS_TEMPORAL_PLUGIN_MODULES` points at modules that expose `get_temporal_worker_plugin()`.
+What it does:
+1. You can provide your agent access to tools.
+2. It provides a standardized interface for running agents, with inputs and outputs controlled through Pydantic Types.
+3. It executes multi-turn LLM calls to achieve the given objective.
 
-The built-in core plugin registers activities only. It does not register application workflows. A host app must provide at least one Temporal workflow plugin to run a workflow.
+### 2. `PipelineStep`
+A `PipelineStep` is a single unit of execution in your workflow. Steps can be:
+- **Code Steps**: Pure Python code.
+- **LLM Steps**: Backed by a `ManagedAgent`. You just provide an `AgentConfig`, and the step handles the LLM execution automatically.
+Every time a step runs, a `PipelineStepModel` database record is created to track its inputs and outputs.
 
-## Temporal Workflow Setup
+### 3. `Pipeline`
+A `Pipeline` groups your `PipelineStep`s together. However, the `Pipeline` class itself does **not** contain orchestration logic (it does not contain a loop to move from step 1 to step 2). It acts purely as a bookkeeping tool, creating a `PipelineRun` database record to tie the step executions together.
 
-### Define a Pipeline and Steps
+### 4. Temporal (The Orchestrator)
+Because `Pipeline` only handles database bookkeeping, an external orchestrator is required to actually transition from one step to the next. **Temporal is the only documented and supported workflow execution path for this package.** The Temporal workflow handles the execution order, retries, timeouts, and failure handling, calling the pipeline steps as Temporal Activities.
 
-Define each executable unit as a `PipelineStep`, then register its owning `Pipeline` and `StepCatalog` metadata during Django startup. The step is not run directly by application code; Temporal activities invoke it.
+---
+
+## Creating and Running a Pipeline: End-to-End Example
+
+Let's build a **Customer Feedback Pipeline**. It will consist of two steps:
+1. **Clean up the feedback text** (A standard Python code step)
+2. **Analyze the sentiment & extract action items** (An LLM Agent step)
+
+### Step 1: Define the Steps and the Pipeline
+
+Define what your pipeline does. You can place this in a file like `my_app/pipelines.py`.
 
 ```python
+from typing import Optional
 from agents.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.agent import AgentConfig
 from agents.step_catalog import StepCatalog, StepExecutionType
 
-
-class NormalizeStep(PipelineStep):
+# --- STEP 1: A Standard Python Code Step ---
+class CleanFeedbackStep(PipelineStep):
     def execute(self, payload: dict) -> dict:
-        return {"text": payload["text"].strip()}
+        # Clean up the text
+        raw_text = payload.get("text", "")
+        cleaned_text = raw_text.strip().lower()
+        return {"cleaned_text": cleaned_text}
 
+# --- STEP 2: An LLM Agent Step ---
+class AnalyzeFeedbackStep(PipelineStep):
+    @property
+    def agent_config(self) -> Optional[AgentConfig]:
+        # Provide the instructions for the LLM under the hood
+        return AgentConfig(
+            instructions=(
+                "You are a customer success AI. Read the feedback and return JSON "
+                "with two keys: 'sentiment' (positive/negative/neutral) and "
+                "'action_item' (a short string suggesting what we should do)."
+            ),
+            model="gpt-4o"
+        )
 
-class SummarizeStep(PipelineStep):
-    def execute(self, payload: dict) -> dict:
-        return {"summary": payload["text"][:120]}
-
-
-class NotesPipeline(Pipeline):
-    name = "notes.pipeline"
+# --- THE PIPELINE ---
+class FeedbackPipeline(Pipeline):
+    name = "feedback.pipeline"
     steps = {
-        "normalize": NormalizeStep,
-        "summarize": SummarizeStep,
+        "clean_text": CleanFeedbackStep,
+        "analyze": AnalyzeFeedbackStep,
     }
 
-
-def register_pipeline_runtime() -> None:
-    PipelineRegistry.register(NotesPipeline)
+# --- REGISTRATION ---
+# This function registers the pipeline with the system.
+def register_feedback_pipeline():
+    PipelineRegistry.register(FeedbackPipeline)
+    
     StepCatalog.register_step(
-        key="normalize",
-        pipeline_name="notes.pipeline",
-        step_class=NormalizeStep,
+        key="clean_text",
+        pipeline_name="feedback.pipeline",
+        step_class=CleanFeedbackStep,
         execution_type=StepExecutionType.CODE,
     )
+    
     StepCatalog.register_step(
-        key="summarize",
-        pipeline_name="notes.pipeline",
-        step_class=SummarizeStep,
-        execution_type=StepExecutionType.CODE,
+        key="analyze",
+        pipeline_name="feedback.pipeline",
+        step_class=AnalyzeFeedbackStep,
+        execution_type=StepExecutionType.LLM,
     )
 ```
 
-Call `register_pipeline_runtime()` from your app's `AppConfig.ready()` or from a registration module imported there.
+### Step 2: Register during Django Startup
 
-### Create a Temporal Workflow Plugin
+You need to call the registration function when Django boots up. Do this in your `my_app/apps.py`.
 
-Create a module listed in `AGENTS_TEMPORAL_PLUGIN_MODULES`, for example `my_app/temporal_plugin.py`.
+```python
+from django.apps import AppConfig
+
+class MyAppConfig(AppConfig):
+    name = "my_app"
+
+    def ready(self):
+        from .pipelines import register_feedback_pipeline
+        register_feedback_pipeline()
+```
+
+### Step 3: Create the Temporal Orchestrator (Workflow)
+
+Create a file called `my_app/temporal_plugin.py`. This is where we tell Temporal **how** to orchestrate the steps.
 
 ```python
 from datetime import timedelta
-
 from temporalio import workflow
-
 from agents.temporal.worker_plugins import TemporalWorkerPlugin
 
+# Safely import the built-in activities
 with workflow.unsafe.imports_passed_through():
     from agents.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
-        mark_pipeline_failed_activity,
         mark_pipeline_success_activity,
+        mark_pipeline_failed_activity,
     )
 
+PIPELINE_NAME = "feedback.pipeline"
 
-PIPELINE_NAME = "notes.pipeline"
-
-
-@workflow.defn(name="notes.pipeline.workflow")
-class NotesPipelineWorkflow:
+@workflow.defn(name="feedback.pipeline.workflow")
+class FeedbackPipelineWorkflow:
     @workflow.run
     async def run(self, payload: dict) -> dict:
         run_id = payload.get("run_id")
         step_payload = payload.get("payload", payload)
 
         try:
+            # 1. Create the database run record (Ledger)
             if not run_id:
                 run_id = await workflow.execute_activity(
                     create_pipeline_run_activity,
@@ -126,24 +170,31 @@ class NotesPipelineWorkflow:
                     start_to_close_timeout=timedelta(seconds=10),
                 )
 
-            normalized = await workflow.execute_activity(
+            # 2. Execute Step 1: Clean
+            cleaned_data = await workflow.execute_activity(
                 execute_pipeline_step_activity,
-                args=[run_id, PIPELINE_NAME, "normalize", 0, step_payload],
+                args=[run_id, PIPELINE_NAME, "clean_text", 0, step_payload],
                 start_to_close_timeout=timedelta(minutes=1),
             )
-            summary = await workflow.execute_activity(
+
+            # 3. Execute Step 2: Analyze (pass the cleaned_data into it)
+            analysis_result = await workflow.execute_activity(
                 execute_pipeline_step_activity,
-                args=[run_id, PIPELINE_NAME, "summarize", 1, normalized],
+                args=[run_id, PIPELINE_NAME, "analyze", 1, cleaned_data],
                 start_to_close_timeout=timedelta(minutes=2),
             )
 
+            # 4. Mark success in the ledger
             await workflow.execute_activity(
                 mark_pipeline_success_activity,
                 args=[run_id, PIPELINE_NAME],
                 start_to_close_timeout=timedelta(seconds=10),
             )
-            return {"run_id": run_id, "output": summary}
+            
+            return {"run_id": run_id, "output": analysis_result}
+
         except Exception as exc:
+            # 5. Mark failure if anything breaks
             if run_id:
                 await workflow.execute_activity(
                     mark_pipeline_failed_activity,
@@ -152,18 +203,19 @@ class NotesPipelineWorkflow:
                 )
             raise
 
-
 def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
     return TemporalWorkerPlugin(
-        plugin_slug="notes",
-        workflows=[NotesPipelineWorkflow],
+        plugin_slug="feedback",
+        workflows=[FeedbackPipelineWorkflow],
         activities=[],
     )
 ```
 
-If the workflow needs custom activities, decorate them with `@activity.defn(name="notes.some_activity")` and register them as `TemporalActivityRegistration` entries. Activity names must start with the plugin slug plus a dot, for example `notes.`.
+*(If the workflow needs custom activities, decorate them with `@activity.defn(name="feedback.some_activity")` and pass them into `activities=[]` inside the plugin.)*
 
-### Configure Django
+### Step 4: Configure Django
+
+Make sure your app and the new temporal plugin module are registered in `settings.py`.
 
 ```python
 INSTALLED_APPS = [
@@ -179,55 +231,55 @@ AGENTS_TEMPORAL_PLUGIN_MODULES = [
 ]
 ```
 
-### Start Temporal and the Worker
+### Step 5: Start Temporal and the Worker
 
-Run a Temporal server locally, then start the Django worker process.
+Run a Temporal server locally, then start the Django worker process. The worker will connect to Temporal and load your built-in `agents` activities and the `my_app.temporal_plugin` you just configured.
 
 ```bash
 temporal server start-dev
 python manage.py run_temporal_worker
 ```
 
-The worker connects to `TEMPORAL_SERVER_URL`, listens on `TEMPORAL_TASK_QUEUE`, loads the built-in `agents` activities, then loads each configured plugin module.
+### Step 6: Trigger the Pipeline from Your App
 
-### Start a Workflow
-
-Use the Temporal Python client from any async caller, management command, view, or service layer. Do not call `Pipeline.execute_step()` or `ManagedAgent.run()` as the application workflow entrypoint.
+When you want to run the pipeline (e.g., from a Django View, an API, or a Celery task), use the Temporal Python client.
 
 ```python
+import uuid
 from temporalio.client import Client
+from django.conf import settings
 
-
-async def start_notes_workflow() -> str:
-    client = await Client.connect("localhost:7233")
+async def process_new_feedback(feedback_text: str):
+    # Connect to your Temporal server
+    client = await Client.connect(settings.TEMPORAL_SERVER_URL)
+    
+    # Start the workflow
     handle = await client.start_workflow(
-        "notes.pipeline.workflow",
-        {"payload": {"text": "  summarize this note  "}},
-        id="notes-pipeline-001",
-        task_queue="ai-pipeline-queue",
+        "feedback.pipeline.workflow",
+        {"payload": {"text": feedback_text}}, # Initial payload
+        id=f"feedback-job-{uuid.uuid4()}",
+        task_queue=settings.TEMPORAL_TASK_QUEUE,
     )
-    return handle.id
+    
+    # Wait for completion and return the result
+    result = await handle.result()
+    print("Final Analysis:", result["output"])
+    return result
 ```
 
-To wait for the result instead of only starting the workflow:
+## Execute a Single Registered Step Manually
 
-```python
-result = await handle.result()
-```
-
-### Execute a Single Registered Step
-
-Workflows can call the generic activity:
+If you only want to execute one step in a custom workflow, you can call the generic activity:
 
 ```python
 await workflow.execute_activity(
     execute_pipeline_step_activity,
-    args=[run_id, "notes.pipeline", "normalize", 0, {"text": "hello"}],
+    args=[run_id, "feedback.pipeline", "clean_text", 0, {"text": "hello"}],
     start_to_close_timeout=timedelta(minutes=1),
 )
 ```
 
-The core plugin also exposes generated step activities named `agents.pipeline_step.<step_key>` for every registered `StepCatalog` key. The generic activity is usually simpler and avoids static imports for dynamic step names.
+The core plugin also exposes generated step activities named `agents.pipeline_step.<step_key>` for every registered `StepCatalog` key. However, the generic activity is usually simpler and avoids static imports for dynamic step names.
 
 ---
 Built with love in Bangalore!

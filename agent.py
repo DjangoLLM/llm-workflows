@@ -4,8 +4,11 @@ from typing import Dict
 
 import logging
 import dataclasses
+import enum
 import threading
 import uuid
+from collections.abc import Mapping as ABCMapping, Sequence as ABCSequence
+from datetime import date, datetime
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Optional
 
@@ -21,6 +24,27 @@ logger = logging.getLogger(__name__)
 
 # Signal emitted when an agent run reaches a terminal state (SUCCEEDED or FAILED).
 agent_run_finished = django.dispatch.Signal()
+
+
+def _json_safe_value(value: Any) -> Any:
+    """Recursively coerce values into JSON-serializable primitives."""
+    if dataclasses.is_dataclass(value):
+        return _json_safe_value(dataclasses.asdict(value))
+    if hasattr(value, "model_dump"):
+        return _json_safe_value(value.model_dump())
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, ABCMapping):
+        return {str(key): _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, enum.Enum):
+        return value.value
+    return value
 
 
 @dataclass(slots=True)
@@ -74,7 +98,7 @@ class Agent:
         elif model is None:
             model = OpenAIResponsesModel('gpt-5-mini')
             
-        model_settings = config.settings if config.settings else OpenAIResponsesModelSettings(openai_reasoning_effort='minimal')
+        model_settings = config.settings if config.settings else OpenAIResponsesModelSettings(openai_reasoning_effort='none')
 
         agent_kwargs: dict[str, Any] = {"instructions": config.instructions}
         if config.result_type is not None:
@@ -212,10 +236,7 @@ class ManagedAgent:
         try:
             result = self._agent.run_sync(input_payload)
             output = getattr(result, "output", getattr(result, "data", None))
-            if dataclasses.is_dataclass(output):
-                output = dataclasses.asdict(output)
-            elif hasattr(output, "model_dump"):
-                output = output.model_dump()
+            output = _json_safe_value(output)
             run.output = output
             run.status = AgentRunStatus.SUCCEEDED
         except Exception as exc:  # noqa: BLE001

@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import enum
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
 from agents.agent import Agent, AgentConfig
+from agents.agent import _json_safe_value
+
+
+class DemoEnum(enum.Enum):
+    VALUE = "value"
+
+
+@dataclass
+class DemoData:
+    value: int
 
 
 def _patch_openai_model_construction(monkeypatch) -> None:
@@ -70,3 +84,23 @@ def test_agent_run_async_serializes_payload_json(monkeypatch) -> None:
     result = asyncio.run(agent.run({"b": 2}))
 
     assert result.output == {"ok": True}
+
+
+def test_json_safe_value_normalizes_nested_values() -> None:
+    value = _json_safe_value(
+        {
+            "id": uuid.UUID("12345678-1234-5678-1234-567812345678"),
+            "at": datetime(2026, 5, 1, 12, 0, 0),
+            "enum": DemoEnum.VALUE,
+            "data": DemoData(value=3),
+            "items": (DemoData(value=4),),
+        }
+    )
+
+    assert value == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "at": "2026-05-01T12:00:00",
+        "enum": "value",
+        "data": {"value": 3},
+        "items": [{"value": 4}],
+    }
