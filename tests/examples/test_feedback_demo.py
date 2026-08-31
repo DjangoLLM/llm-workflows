@@ -13,8 +13,8 @@ if str(DEMO_DIR) not in sys.path:
     sys.path.insert(0, str(DEMO_DIR))
 
 from agents.models import AgentRun, AgentRunStatus, PipelineRun, PipelineStatus, PipelineStep
-from agents.pipeline_structure import PipelineRegistry
-from agents.step_catalog import StepCatalog, StepExecutionType
+from agents.core.pipeline_structure import PipelineRegistry
+from agents.core.step_catalog import StepCatalog, StepExecutionType
 from feedback.pipelines import (
     ANALYZE_STEP,
     CLEAN_STEP,

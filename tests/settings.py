@@ -8,7 +8,7 @@ from pathlib import Path
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 SECRET_KEY = "agents-test-secret-key"
 DEBUG = False
@@ -24,7 +24,22 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = []
 ROOT_URLCONF = "agents.urls"
-TEMPLATES: list[dict[str, object]] = []
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [
+            BASE_DIR / "examples" / "feedback_demo" / "feedback" / "templates",
+        ],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+            ],
+        },
+    },
+]
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:

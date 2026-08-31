@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en" data-plane-current-state="HLD" data-plane-next-state="LLD">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="plane-state-edge" content="HLD->LLD">
+<meta name="design-doc-updated" content="2026-06-22T00:00:00Z">
+<title>T645 · Approve/Disapprove Design Docs · LLD</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1d2433;
+    --muted: #5b6478;
+    --line: #e3e7ee;
+    --accent: #3556d4;
+    --accent-soft: #e8edfb;
+    --green: #1d7a4f;
+    --green-soft: #e3f3ea;
+    --amber: #9a6700;
+    --amber-soft: #fbf0d8;
+    --red: #b03030;
+    --red-soft: #fbe7e7;
+    --violet: #6b3fb8;
+    --violet-soft: #f0e9fb;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(255,255,255,.96);
+    border-bottom: 1px solid var(--line);
+  }
+  .head {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 32px 0;
+  }
+  .crumb {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 6px 0 4px;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: 0;
+  }
+  .sub {
+    max-width: 920px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 0;
+  }
+  .chip {
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+  .chip.amber { background: var(--amber-soft); color: var(--amber); }
+  .chip.violet { background: var(--violet-soft); color: var(--violet); }
+  nav {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    margin: 18px -32px 0;
+    padding: 0 32px;
+  }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 10px 13px 9px;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 34px 32px 72px;
+  }
+  section {
+    margin-bottom: 54px;
+    scroll-margin-top: 150px;
+  }
+  h2 {
+    margin: 0 0 5px;
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+  .lede {
+    max-width: 880px;
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .flow-strip {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stage strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .stage p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .stage.green { border-color: #cfe5d8; }
+  .stage.green strong { color: var(--green); }
+  .stage.amber { border-color: #ead7a7; }
+  .stage.amber strong { color: var(--amber); }
+  .arrow {
+    align-self: center;
+    color: var(--violet);
+    font-weight: 800;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .card .tag {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .card p,
+  .card li {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .card p { margin: 0; }
+  .card ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+  }
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .matrix th,
+  .matrix td {
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+    font-size: 13px;
+  }
+  .matrix th {
+    color: var(--muted);
+    background: #fbfcfe;
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .matrix tr:last-child td { border-bottom: 0; }
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #eef1f6;
+    color: #26334f;
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  .callout {
+    border: 1px solid #cfe5d8;
+    background: var(--green-soft);
+    color: #174d35;
+    border-radius: 8px;
+    padding: 15px 17px;
+    font-size: 13px;
+  }
+  .callout strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--green);
+  }
+  .timeline {
+    counter-reset: step;
+    display: grid;
+    gap: 10px;
+  }
+  .step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 13px 15px;
+  }
+  .step:before {
+    counter-increment: step;
+    content: counter(step);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .step strong { display: block; margin-bottom: 3px; font-size: 13px; }
+  .step span { color: var(--muted); font-size: 13px; }
+  @media (max-width: 860px) {
+    .head, main { padding-left: 18px; padding-right: 18px; }
+    nav { margin-left: -18px; margin-right: -18px; padding: 0 18px; }
+    .grid, .grid.two, .flow-strip { grid-template-columns: 1fr; }
+    .arrow { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="head">
+      <div class="crumb">Coding · freedom-chat · Ticket #645 · LLD</div>
+      <h1>Approve/Disapprove Design Docs: Low-Level Implementation Plan</h1>
+      <div class="sub">Implementation harness for the manual approval gate in plane-tui. Approve resolves a configured workflow edge, guards against stale story state, and transitions by live Plane state ID. Disapprove records a durable decision without changing Plane.</div>
+      <div class="chips">
+        <span class="chip">Phase: LLD candidate</span>
+        <span class="chip green">HTML stamp: HLD-&gt;LLD</span>
+        <span class="chip amber">No implementation in this phase</span>
+        <span class="chip violet">plane-tui only</span>
+      </div>
+      <nav aria-label="Document sections">
+        <a href="#scope">Scope</a>
+        <a href="#config">Config</a>
+        <a href="#html">HTML Override</a>
+        <a href="#data">Data</a>
+        <a href="#api">API</a>
+        <a href="#flows">Flows</a>
+        <a href="#frontend">Frontend</a>
+        <a href="#validation">Validation</a>
+        <a href="#sequence">Sequence</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="scope">
+      <h2>Scope and Existing Anchors</h2>
+      <p class="lede">This ticket adds a human decision path around registered design documents. It keeps the agent's existing self-advance behavior intact and adds a guarded manual approval path.</p>
+      <div class="flow-strip">
+        <div class="stage">
+          <strong>Doc viewer</strong>
+          <p><code>DocTab.tsx</code> keeps the sandboxed iframe and adds app-owned Approve/Disapprove chrome outside the document.</p>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="stage amber">
+          <strong>Decision API</strong>
+          <p><code>server/documents/api.py</code> resolves the edge, guards live state, and records decisions.</p>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="stage green">
+          <strong>Worktracker</strong>
+          <p><code>core/core/plane_client.py</code> remains the update path for task state changes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Files to Touch</h2>
+      <p class="lede">All implementation code lands in <code>/Users/karthik/merge_conflicts/coding/plane-tui</code>. This repository contains only the design artifacts for review.</p>
+      <table class="matrix">
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>core/core/config.py</code></td><td>Add persisted profile <code>state_edge_map</code> with defaults and backward-compatible loading.</td></tr>
+          <tr><td><code>web/frontend/src/lib/defaultPrompts.ts</code></td><td>Mirror default workflow edges beside the existing prompt defaults.</td></tr>
+          <tr><td><code>web/frontend/src/lib/types.ts</code></td><td>Add frontend types for edge map and document decision responses.</td></tr>
+          <tr><td><code>server/documents/models.py</code></td><td>Add <code>DocumentDecision</code> persistence model.</td></tr>
+          <tr><td><code>server/documents/dao.py</code></td><td>Add decision write and history helpers.</td></tr>
+          <tr><td><code>server/documents/api.py</code></td><td>Add approve/disapprove endpoints and the shared HTML edge parser.</td></tr>
+          <tr><td><code>web/frontend/src/lib/api.ts</code></td><td>Add local backend calls for approve and disapprove.</td></tr>
+          <tr><td><code>web/frontend/src/panes/tabs/DocTab.tsx</code></td><td>Add viewer action bar, loading states, messages, and refresh hooks.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="config">
+      <h2>Configuration Contract</h2>
+      <p class="lede">The workflow edge map is profile-level configuration keyed by literal Plane state names. Plane state IDs are intentionally resolved at click time from live project states.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="tag">Default map</div>
+          <h3>Workflow edges</h3>
+          <ul>
+            <li><code>Backlog</code> to <code>Todo</code></li>
+            <li><code>Todo</code> to <code>HLD</code></li>
+            <li><code>HLD</code> to <code>LLD</code></li>
+            <li><code>LLD</code> to <code>In Progress</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="tag">Compatibility</div>
+          <h3>Old profile JSON</h3>
+          <p>Missing, null, or invalid edge maps load with defaults. Existing profile update flows must preserve the field once present.</p>
+        </div>
+        <div class="card">
+          <div class="tag">No new editor</div>
+          <h3>Minimum UI scope</h3>
+          <p>No map editor is required in this ticket unless an existing profile form would otherwise drop or reject the new field.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="html">
+      <h2>HTML Edge Override</h2>
+      <p class="lede">A generated HTML design document may stamp its preferred state edge. The server parser owns this logic so the browser does not duplicate parsing rules.</p>
+      <table class="matrix">
+        <thead><tr><th>Case</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td>Complete meta stamp</td><td>Use the stamped current and next state names as the edge source.</td></tr>
+          <tr><td>Complete root data attributes</td><td>Use the root pair when no conflicting meta stamp exists.</td></tr>
+          <tr><td>Both forms disagree</td><td>Reject as malformed rather than guessing.</td></tr>
+          <tr><td>Partial or empty stamp</td><td>Reject as malformed with a clear parser message.</td></tr>
+          <tr><td>No stamp</td><td>Resolve from <code>profile.state_edge_map</code> using the story's live current state.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="data">
+      <h2>Decision Persistence</h2>
+      <p class="lede">Disapprove must be forward-compatible with notes and future doc-agent rework. Approve also records successful transitions and conflict no-ops for auditability.</p>
+      <table class="matrix">
+        <thead><tr><th>Field</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>Primary key generated when the decision is written.</td></tr>
+          <tr><td><code>doc_id</code></td><td>Registered design document ID.</td></tr>
+          <tr><td><code>task_id</code></td><td>Owning story at decision time.</td></tr>
+          <tr><td><code>decision</code></td><td><code>approved</code> or <code>disapproved</code>.</td></tr>
+          <tr><td><code>state_at_decision</code></td><td>Live story state name observed during handling.</td></tr>
+          <tr><td><code>resolved_current_state</code> / <code>resolved_next_state</code></td><td>Edge names used by approve; nullable for disapprove.</td></tr>
+          <tr><td><code>edge_source</code></td><td><code>html_override</code> or <code>profile_map</code> for approve.</td></tr>
+          <tr><td><code>note</code></td><td>Nullable reviewer note/reason.</td></tr>
+          <tr><td><code>outcome</code></td><td><code>transitioned</code>, <code>noop_conflict</code>, <code>failed</code>, or <code>recorded</code>.</td></tr>
+          <tr><td><code>message</code> and <code>created_at</code></td><td>Human-readable audit result and UTC timestamp.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="api">
+      <h2>Backend API Contract</h2>
+      <p class="lede">The endpoints live under the document registry boundary because that layer owns registered docs, task links, and safe file access.</p>
+      <div class="grid two">
+        <div class="card">
+          <div class="tag">Approve</div>
+          <h3><code>POST /api/documents/{doc_id}/approve</code></h3>
+          <p>Accepts <code>project_id</code>, <code>task_id</code>, optional <code>profile</code>, and optional <code>note</code>. Returns <code>transitioned</code> or <code>noop_conflict</code> with a clear message.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Disapprove</div>
+          <h3><code>POST /api/documents/{doc_id}/disapprove</code></h3>
+          <p>Accepts the same task context plus optional note. Persists the decision and returns <code>recorded</code>. It never calls the state update path.</p>
+        </div>
+      </div>
+      <table class="matrix" style="margin-top:14px">
+        <thead><tr><th>Error / outcome</th><th>Response behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Unknown doc</td><td>404 with <code>document_not_found</code>.</td></tr>
+          <tr><td>Task mismatch</td><td>409 with <code>document_task_mismatch</code>.</td></tr>
+          <tr><td>Scratch/no real task</td><td>400 with <code>task_document_required</code>.</td></tr>
+          <tr><td>Missing edge</td><td>409 naming the current state and profile source.</td></tr>
+          <tr><td>Unknown or renamed state</td><td>409 naming the missing state and edge source.</td></tr>
+          <tr><td>Already advanced story</td><td>200 <code>noop_conflict</code>; no update call.</td></tr>
+          <tr><td>Worktracker update failure</td><td>Surface the failure as an error, never a silent false.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="flows">
+      <h2>Backend Flows</h2>
+      <p class="lede">The live story state is fetched before resolving and checked again against the resolved edge before any state update.</p>
+      <div class="grid two">
+        <div>
+          <h3>Approve</h3>
+          <div class="timeline">
+            <div class="step"><div><strong>Load and validate document</strong><span>Reject unknown docs, scratch docs, and task mismatches.</span></div></div>
+            <div class="step"><div><strong>Fetch live task state</strong><span>Capture <code>state_at_decision</code> from current task details.</span></div></div>
+            <div class="step"><div><strong>Resolve edge</strong><span>Prefer HTML override; otherwise use the profile map keyed by live state.</span></div></div>
+            <div class="step"><div><strong>Resolve state IDs</strong><span>Match exact state names against live project states and fail loudly on missing or duplicate names.</span></div></div>
+            <div class="step"><div><strong>Guard and update</strong><span>If live state differs from expected current, record no-op. Otherwise call <code>update_task_state</code>.</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3>Disapprove</h3>
+          <div class="timeline">
+            <div class="step"><div><strong>Load and validate document</strong><span>Use the registry row and selected task context; never parse the path segment.</span></div></div>
+            <div class="step"><div><strong>Fetch live task state</strong><span>Record the current story state for future rework automation.</span></div></div>
+            <div class="step"><div><strong>Persist decision</strong><span>Write <code>disapproved</code>, nullable note, and <code>recorded</code> outcome.</span></div></div>
+            <div class="step"><div><strong>Return without transition</strong><span>Do not call <code>update_task_state</code> or any status update wrapper.</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="frontend">
+      <h2>Frontend Behavior</h2>
+      <p class="lede">The action bar belongs to app chrome, not the sandboxed document. Results stay visible in the document tab because no-op conflicts are expected when an agent already advanced the story.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="tag">Visibility</div>
+          <h3>Real task docs only</h3>
+          <p>Hide controls without a selected project, without a selected real task, or for scratch docs. Disable controls while task details or a decision request is loading.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Approve result</div>
+          <h3>Refresh after every outcome</h3>
+          <p>On transition or no-op, show the backend message, refresh the module task list, and reload selected details if the same task is still selected.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Disapprove result</div>
+          <h3>No status mutation</h3>
+          <p>Show saved-decision feedback and leave Plane untouched. Optional note UI can wait unless an existing lightweight input pattern is already available.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="validation">
+      <h2>Validation Plan</h2>
+      <p class="lede">Tests focus on the guard, loud failures, persistence, and frontend refresh behavior.</p>
+      <div class="grid two">
+        <div class="card">
+          <div class="tag">Backend</div>
+          <ul>
+            <li>Config loads old profile JSON with default edge map.</li>
+            <li>HTML parser accepts both stamp forms and rejects malformed stamps.</li>
+            <li>Approve works through profile-map and HTML-override paths.</li>
+            <li>Already-advanced stories return <code>noop_conflict</code> and skip update.</li>
+            <li>Unknown state names fail with the missing name and source.</li>
+            <li>Disapprove creates a nullable-note decision and never updates Plane.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="tag">Frontend</div>
+          <ul>
+            <li>API client posts approve/disapprove payloads to local endpoints.</li>
+            <li><code>DocTab</code> hides controls for scratch or no-task contexts.</li>
+            <li>Controls disable during requests.</li>
+            <li>Success and no-op messages trigger task and detail refreshes.</li>
+            <li>Errors show server messages without optimistic local state changes.</li>
+            <li>Profile-preserving flows keep <code>state_edge_map</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="sequence">
+      <h2>Implementation Sequence</h2>
+      <p class="lede">The sequence keeps schema/config work ahead of endpoint behavior, then layers frontend interaction after backend contracts are tested.</p>
+      <div class="timeline">
+        <div class="step"><div><strong>Config defaults</strong><span>Add backend profile edge-map defaults, frontend mirror, and preservation tests.</span></div></div>
+        <div class="step"><div><strong>Decision persistence</strong><span>Add the document decision model, migration, DAO helpers, and DAO tests.</span></div></div>
+        <div class="step"><div><strong>Parser</strong><span>Add one backend HTML edge parser with unit tests for valid, absent, and malformed stamps.</span></div></div>
+        <div class="step"><div><strong>Decision endpoints</strong><span>Implement approve/disapprove with live-state guard, state-name resolution, decision writes, and loud errors.</span></div></div>
+        <div class="step"><div><strong>Frontend API and chrome</strong><span>Add typed API calls and extend <code>DocTab.tsx</code> with controls, request state, messages, and refresh hooks.</span></div></div>
+        <div class="step"><div><strong>Focused validation</strong><span>Run document API/DAO tests, config tests, and targeted DocTab/API client tests before broader validation.</span></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="callout">
+        <strong>Acceptance checkpoint</strong>
+        Approve resolves from HTML override first, otherwise from the profile map keyed by live current state; stale stories no-op clearly; unknown state names fail loudly; Disapprove persists a nullable-note decision without changing Plane; existing agent self-advance behavior remains intact.
+      </div>
+    </section>
+  </main>
+</body>
+</html>

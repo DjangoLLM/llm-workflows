@@ -6,16 +6,16 @@ from datetime import timedelta
 
 from temporalio import workflow
 
-from agents.temporal.worker_plugins import TemporalWorkerPlugin
+from agents.core.temporal.worker_plugins import TemporalWorkerPlugin
 
 with workflow.unsafe.imports_passed_through():
-    from agents.temporal.activities import (
+    from agents.core.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
         mark_pipeline_failed_activity,
         mark_pipeline_success_activity,
     )
-    from feedback.pipelines import ANALYZE_STEP, CLEAN_STEP, PIPELINE_NAME
+    from feedback.pipelines import ANALYZE_STEP, CLEAN_STEP, ECHO_STEP, PIPELINE_NAME
     from feedback.pipelines import register_feedback_pipeline
 
 
@@ -40,9 +40,15 @@ class FeedbackPipelineWorkflow:
                 start_to_close_timeout=timedelta(minutes=1),
             )
 
+            echo_data = await workflow.execute_activity(
+                execute_pipeline_step_activity,
+                args=[run_id, PIPELINE_NAME, ECHO_STEP, 1, cleaned_data],
+                start_to_close_timeout=timedelta(minutes=1),
+            )
+
             analysis_result = await workflow.execute_activity(
                 execute_pipeline_step_activity,
-                args=[run_id, PIPELINE_NAME, ANALYZE_STEP, 1, cleaned_data],
+                args=[run_id, PIPELINE_NAME, ANALYZE_STEP, 2, echo_data],
                 start_to_close_timeout=timedelta(minutes=2),
             )
 

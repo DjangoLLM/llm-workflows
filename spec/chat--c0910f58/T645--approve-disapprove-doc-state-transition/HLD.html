@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en" data-plane-current-state="Todo" data-plane-next-state="HLD">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="plane-state-edge" content="Todo->HLD">
+<meta name="design-doc-updated" content="2026-06-22T17:58:00Z">
+<title>T645 · Approve/Disapprove Design Docs · HLD</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1d2433;
+    --muted: #5b6478;
+    --line: #e3e7ee;
+    --accent: #3556d4;
+    --accent-soft: #e8edfb;
+    --green: #1d7a4f;
+    --green-soft: #e3f3ea;
+    --amber: #9a6700;
+    --amber-soft: #fbf0d8;
+    --red: #b03030;
+    --red-soft: #fbe7e7;
+    --violet: #6b3fb8;
+    --violet-soft: #f0e9fb;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(255,255,255,.96);
+    border-bottom: 1px solid var(--line);
+  }
+  .head {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 32px 0;
+  }
+  .crumb {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 6px 0 4px;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: 0;
+  }
+  .sub {
+    max-width: 900px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 0;
+  }
+  .chip {
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+  .chip.amber { background: var(--amber-soft); color: var(--amber); }
+  .chip.violet { background: var(--violet-soft); color: var(--violet); }
+  nav {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    margin: 18px -32px 0;
+    padding: 0 32px;
+  }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 10px 13px 9px;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  nav a.active,
+  nav a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 34px 32px 72px;
+  }
+  section {
+    margin-bottom: 54px;
+    scroll-margin-top: 150px;
+  }
+  h2 {
+    margin: 0 0 5px;
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+  .lede {
+    max-width: 860px;
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .flow-strip {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stage strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .stage p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .stage.green { border-color: #cfe5d8; }
+  .stage.green strong { color: var(--green); }
+  .stage.amber { border-color: #ead7a7; }
+  .stage.amber strong { color: var(--amber); }
+  .arrow {
+    align-self: center;
+    color: var(--violet);
+    font-weight: 800;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .card .tag {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .card h3 {
+    margin: 4px 0 8px;
+    font-size: 15px;
+  }
+  .card p,
+  .card li {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .card p { margin: 0; }
+  .card ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+  }
+  .diagram-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    min-height: 430px;
+  }
+  svg text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    fill: var(--ink);
+  }
+  .node { cursor: pointer; }
+  .node rect,
+  .node ellipse {
+    transition: stroke-width .12s ease, filter .12s ease, opacity .12s ease;
+  }
+  .node.active rect,
+  .node.active ellipse {
+    stroke-width: 3;
+    filter: drop-shadow(0 2px 8px rgba(53,86,212,.28));
+  }
+  .node.dim rect,
+  .node.dim ellipse,
+  .node.dim text { opacity: .34; }
+  .side {
+    border-left: 1px solid var(--line);
+    padding-left: 18px;
+  }
+  .side h3 {
+    margin: 0 0 8px;
+    color: var(--accent);
+    font-size: 15px;
+  }
+  .side .mini {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .side h4 {
+    margin: 14px 0 5px;
+    font-size: 12px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .side ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .side li {
+    margin: 4px 0;
+    font-size: 13px;
+  }
+  .no li { color: var(--red); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  th,
+  td {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+    font-size: 13px;
+  }
+  th {
+    background: #fbfcfe;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  tr.trace {
+    cursor: pointer;
+  }
+  tr.trace:hover,
+  tr.trace.active {
+    background: var(--accent-soft);
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .pill.green { background: var(--green-soft); color: var(--green); }
+  .pill.amber { background: var(--amber-soft); color: var(--amber); }
+  .pill.violet { background: var(--violet-soft); color: var(--violet); }
+  .tree {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .files {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.95;
+  }
+  .files .dir { color: var(--accent); font-weight: 800; }
+  .files .new { background: var(--green-soft); border-radius: 4px; padding: 1px 6px; }
+  .files .mod { background: var(--amber-soft); border-radius: 4px; padding: 1px 6px; }
+  .files .readonly { color: var(--muted); }
+  .notes {
+    border-left: 1px solid var(--line);
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .notes ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .accept {
+    background: var(--green-soft);
+    border: 1px solid #cfe5d8;
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .accept strong { color: var(--green); }
+  @media (max-width: 860px) {
+    .head,
+    main { padding-left: 18px; padding-right: 18px; }
+    nav { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+    .flow-strip,
+    .grid,
+    .diagram-wrap,
+    .tree { grid-template-columns: 1fr; }
+    .arrow { text-align: center; }
+    .side,
+    .notes { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head">
+    <div class="crumb">Coding · freedom-chat · Ticket #645 · HLD</div>
+    <h1>Approve/Disapprove Design Docs to Advance Linked Stories</h1>
+    <div class="sub">A human approval gate lives in the app shell around existing design-doc tabs. Approve can move the linked story across a configured Plane state edge; Disapprove records a durable decision without changing Plane. The generated HTML document never renders those action controls.</div>
+    <div class="chips">
+      <span class="chip">Phase: HLD</span>
+      <span class="chip green">Manual path coexists with agent self-advance</span>
+      <span class="chip amber">Guarded live-state transition</span>
+      <span class="chip violet">Doc HTML stores metadata only</span>
+    </div>
+    <nav id="nav">
+      <a href="#problem" class="active">Problem</a>
+      <a href="#decisions">Decisions</a>
+      <a href="#shape">System Shape</a>
+      <a href="#flow">Approve Flow</a>
+      <a href="#trace">Trace</a>
+      <a href="#files">Files</a>
+      <a href="#acceptance">Acceptance</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section id="problem">
+    <h2>Problem</h2>
+    <p class="lede">The same design document can be relevant to different Plane workflow edges over a story's life, and the doc agent may already have advanced the story before a reviewer clicks Approve.</p>
+    <div class="flow-strip">
+      <div class="stage">
+        <strong>Today</strong>
+        <p>The app renders generated HTML in a sandboxed iframe while agents can update Plane state themselves from workflow prompts.</p>
+      </div>
+      <div class="arrow">-></div>
+      <div class="stage amber">
+        <strong>Risk</strong>
+        <p>A stale click must not move a story to the wrong next state when live state has changed.</p>
+      </div>
+      <div class="arrow">-></div>
+      <div class="stage green">
+        <strong>Target</strong>
+        <p>Approve resolves an edge, guards live state, then transitions by state ID. Disapprove records the decision only.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <h2>Design Decisions</h2>
+    <p class="lede">The HLD keeps authority on the server side for state resolution, guarding, and persistence, while the app viewer owns the action chrome around the sandboxed document.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="tag">Edge source</div>
+        <h3>Document stamp only</h3>
+        <p>A generated document may stamp a current/next pair as metadata, never as action UI. If absent, the server uses the selected profile's state-edge map keyed by the story's live current state.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Transition guard</div>
+        <h3>Live state is authoritative</h3>
+        <p>The server re-fetches the story immediately before transition. If it is no longer in the expected current state, the request returns a clear no-op.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Disapproval</div>
+        <h3>Record, do not move</h3>
+        <p>Disapprove writes a decision row with doc, task, state-at-decision, timestamp, and optional note. Plane state is unchanged.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="shape">
+    <h2>System Shape</h2>
+    <p class="lede">Click a component to inspect its responsibilities. Dashed boxes mark existing surfaces that are extended but not conceptually replaced.</p>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 920 520" role="img" aria-label="High-level architecture diagram">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#5b6478"></path>
+          </marker>
+        </defs>
+
+        <g class="node" data-node="viewer">
+          <rect x="35" y="70" width="190" height="92" rx="8" fill="#ffffff" stroke="#3556d4" stroke-width="2"></rect>
+          <text x="130" y="104" text-anchor="middle" font-size="14" font-weight="700">DocTab.tsx</text>
+          <text x="130" y="128" text-anchor="middle" font-size="12" fill="#5b6478">app action chrome</text>
+        </g>
+
+        <g class="node" data-node="iframe">
+          <rect x="35" y="204" width="190" height="74" rx="8" fill="#f6f7f9" stroke="#9a6700" stroke-width="2" stroke-dasharray="7 5"></rect>
+          <text x="130" y="236" text-anchor="middle" font-size="13" font-weight="700">Sandboxed HTML</text>
+          <text x="130" y="258" text-anchor="middle" font-size="12" fill="#5b6478">read-only stamp</text>
+        </g>
+
+        <g class="node" data-node="api">
+          <rect x="330" y="64" width="230" height="112" rx="8" fill="#ffffff" stroke="#3556d4" stroke-width="2"></rect>
+          <text x="445" y="100" text-anchor="middle" font-size="14" font-weight="700">documents/api.py</text>
+          <text x="445" y="124" text-anchor="middle" font-size="12" fill="#5b6478">approve/disapprove endpoints</text>
+          <text x="445" y="146" text-anchor="middle" font-size="12" fill="#5b6478">edge parser + guard</text>
+        </g>
+
+        <g class="node" data-node="registry">
+          <rect x="333" y="220" width="224" height="80" rx="8" fill="#ffffff" stroke="#6b3fb8" stroke-width="2" stroke-dasharray="7 5"></rect>
+          <text x="445" y="253" text-anchor="middle" font-size="13" font-weight="700">DesignDocument</text>
+          <text x="445" y="275" text-anchor="middle" font-size="12" fill="#5b6478">doc-to-task source of truth</text>
+        </g>
+
+        <g class="node" data-node="profile">
+          <rect x="637" y="48" width="220" height="82" rx="8" fill="#ffffff" stroke="#9a6700" stroke-width="2"></rect>
+          <text x="747" y="82" text-anchor="middle" font-size="13" font-weight="700">Profile config</text>
+          <text x="747" y="104" text-anchor="middle" font-size="12" fill="#5b6478">state name -> state name</text>
+        </g>
+
+        <g class="node" data-node="states">
+          <rect x="637" y="166" width="220" height="82" rx="8" fill="#ffffff" stroke="#1d7a4f" stroke-width="2"></rect>
+          <text x="747" y="200" text-anchor="middle" font-size="13" font-weight="700">Live Plane states</text>
+          <text x="747" y="222" text-anchor="middle" font-size="12" fill="#5b6478">name-to-ID resolution</text>
+        </g>
+
+        <g class="node" data-node="decision">
+          <rect x="330" y="358" width="230" height="88" rx="8" fill="#ffffff" stroke="#b03030" stroke-width="2"></rect>
+          <text x="445" y="393" text-anchor="middle" font-size="13" font-weight="700">Decision record</text>
+          <text x="445" y="415" text-anchor="middle" font-size="12" fill="#5b6478">disapprove audit + note</text>
+        </g>
+
+        <g class="node" data-node="worktracker">
+          <rect x="637" y="312" width="220" height="94" rx="8" fill="#ffffff" stroke="#1d7a4f" stroke-width="2" stroke-dasharray="7 5"></rect>
+          <text x="747" y="348" text-anchor="middle" font-size="13" font-weight="700">Worktracker repo</text>
+          <text x="747" y="370" text-anchor="middle" font-size="12" fill="#5b6478">get details, get states</text>
+          <text x="747" y="390" text-anchor="middle" font-size="12" fill="#5b6478">update_task_state</text>
+        </g>
+
+        <path d="M225 110 H330" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <text x="278" y="98" text-anchor="middle" font-size="11" fill="#5b6478">app posts action</text>
+        <path d="M130 162 V204" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <text x="151" y="187" font-size="11" fill="#5b6478">stamp is read</text>
+        <path d="M445 176 V220" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <path d="M560 96 H637" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <path d="M560 138 C606 142 606 195 637 205" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <path d="M560 116 C622 148 620 324 637 350" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <path d="M445 300 V358" stroke="#5b6478" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+        <text x="472" y="334" font-size="11" fill="#5b6478">disapprove only</text>
+      </svg>
+      <aside class="side" id="nodeInfo">
+        <h3>DocTab.tsx</h3>
+        <p class="mini">Click any diagram node.</p>
+        <h4>Does</h4>
+        <ul class="yes">
+          <li>Renders Approve/Disapprove in app chrome outside the iframe.</li>
+          <li>Sends doc, task, project, and profile context to the API.</li>
+          <li>Refreshes task state after success or conflict.</li>
+        </ul>
+        <h4>Does not</h4>
+        <ul class="no">
+          <li>Trust iframe scripts or generated HTML controls to trigger workflow actions.</li>
+          <li>Resolve Plane state IDs locally.</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <section id="flow">
+    <h2>Approve Flow</h2>
+    <p class="lede">Approval is a guarded server transaction. A stale click is a successful no-op, not an accidental transition.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Mechanic</th>
+          <th>Failure behavior</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>1</code></td>
+          <td>Frontend posts `doc_id`, selected task, selected project, and profile index.</td>
+          <td>Missing context returns an explicit error.</td>
+        </tr>
+        <tr>
+          <td><code>2</code></td>
+          <td>Backend loads the registry row and validates the document belongs to the selected task.</td>
+          <td>Mismatch is rejected; no path parsing fallback.</td>
+        </tr>
+        <tr>
+          <td><code>3</code></td>
+          <td>Backend parses the document's metadata-only state-pair stamp or falls back to the profile map.</td>
+          <td>Malformed override or missing map entry returns a clear error/no-edge result.</td>
+        </tr>
+        <tr>
+          <td><code>4</code></td>
+          <td>Backend re-fetches live task details and compares current state to expected current.</td>
+          <td>Different state returns no-op conflict: "story is in X, expected Y".</td>
+        </tr>
+        <tr>
+          <td><code>5</code></td>
+          <td>Backend resolves current and next names against live project states, then updates by next state ID.</td>
+          <td>Unknown state names and update failures surface loudly to the UI.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="trace">
+    <h2>Requirement Trace</h2>
+    <p class="lede">Hover or click a row to highlight the diagram component that carries the requirement.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Requirement</th>
+          <th>Design response</th>
+          <th>Component</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="trace" data-node="profile">
+          <td><code>Edge map</code></td>
+          <td>Profile owns literal current-state to next-state names, mirrored in frontend defaults.</td>
+          <td><span class="pill amber">Profile config</span></td>
+        </tr>
+        <tr class="trace" data-node="iframe">
+          <td><code>Metadata stamp</code></td>
+          <td>Generated docs may stamp a state pair that overrides the profile map; they do not embed approve/disapprove controls.</td>
+          <td><span class="pill amber">Sandboxed HTML</span></td>
+        </tr>
+        <tr class="trace" data-node="api">
+          <td><code>Guard</code></td>
+          <td>The approval endpoint re-fetches live state and no-ops on mismatch.</td>
+          <td><span class="pill violet">documents/api.py</span></td>
+        </tr>
+        <tr class="trace" data-node="states">
+          <td><code>Loud name-to-ID failure</code></td>
+          <td>State names resolve against live project states before update.</td>
+          <td><span class="pill green">Live states</span></td>
+        </tr>
+        <tr class="trace" data-node="decision">
+          <td><code>Disapprove</code></td>
+          <td>Decision row records doc, task, state-at-decision, timestamp, and optional note.</td>
+          <td><span class="pill violet">Decision record</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files">
+    <h2>File Change Map</h2>
+    <p class="lede">Implementation lands in `plane-tui`; this `freedom-agents` directory only carries the reviewable design document.</p>
+    <div class="tree">
+      <div class="files">
+        <div class="dir">plane-tui/</div>
+        <div>&nbsp;&nbsp;core/core/<span class="mod">config.py</span></div>
+        <div>&nbsp;&nbsp;server/documents/<span class="mod">models.py</span></div>
+        <div>&nbsp;&nbsp;server/documents/<span class="mod">dao.py</span></div>
+        <div>&nbsp;&nbsp;server/documents/<span class="mod">api.py</span></div>
+        <div>&nbsp;&nbsp;web/frontend/src/lib/<span class="mod">types.ts</span></div>
+        <div>&nbsp;&nbsp;web/frontend/src/lib/<span class="mod">api.ts</span></div>
+        <div>&nbsp;&nbsp;web/frontend/src/lib/<span class="mod">defaultPrompts.ts</span></div>
+        <div>&nbsp;&nbsp;web/frontend/src/panes/tabs/<span class="mod">DocTab.tsx</span></div>
+        <div>&nbsp;&nbsp;<span class="readonly">existing worktracker update path reused</span></div>
+      </div>
+      <div class="notes">
+        <ul>
+          <li>`postTaskStatus` / `update_task_state` remains the state write path.</li>
+          <li>The new API adds guard and failure semantics before that write.</li>
+          <li>Disapprove persistence is deliberately independent of Plane transition logic.</li>
+          <li>No code implementation belongs in this HLD phase.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="acceptance">
+    <h2>Acceptance Signals</h2>
+    <div class="accept">
+      <strong>Ready for LLD when:</strong> the design preserves agent self-advance, adds an app-owned manual approval path with live-state guarding, keeps approve/disapprove controls out of generated HTML, resolves states by name against live Plane state IDs, returns explicit conflict/error messages, and records Disapprove decisions with a nullable note for future rework automation.
+    </div>
+  </section>
+</main>
+
+<script>
+  const nodeData = {
+    viewer: {
+      title: "DocTab.tsx",
+      mini: "App chrome outside the sandboxed document.",
+      does: [
+        "Shows Approve/Disapprove for task-bound docs in the app shell.",
+        "Posts selected project, task, profile, and doc context.",
+        "Refreshes task data after success, conflict, or saved decision."
+      ],
+      no: [
+        "Does not let iframe scripts or generated HTML controls approve a story.",
+        "Does not resolve Plane state IDs locally."
+      ]
+    },
+    iframe: {
+      title: "Sandboxed HTML",
+      mini: "The document can carry an optional state-pair stamp, but no action controls.",
+      does: [
+        "Provides an override such as Todo -> HLD or LLD -> In Progress.",
+        "Survives filesystem rescans because it lives in the HTML metadata."
+      ],
+      no: [
+        "Does not render Approve/Disapprove buttons.",
+        "Does not become the authority for live story state.",
+        "Does not trigger approval actions by itself."
+      ]
+    },
+    api: {
+      title: "documents/api.py",
+      mini: "The approval boundary owns resolution, guard, and messages.",
+      does: [
+        "Validates the registry document belongs to the selected task.",
+        "Parses the metadata stamp or falls back to profile map.",
+        "Re-fetches live state before transition.",
+        "Returns explicit success, no-op, or error payloads."
+      ],
+      no: [
+        "Does not silently swallow state-name or update failures.",
+        "Does not infer task ownership from path names."
+      ]
+    },
+    registry: {
+      title: "DesignDocument registry",
+      mini: "Existing doc-to-task source of truth.",
+      does: [
+        "Stores document ID, task ID, module ID, root directory, and relative path.",
+        "Allows safe access to the registered HTML for stamp parsing."
+      ],
+      no: [
+        "Does not decide workflow edges.",
+        "Does not parse cosmetic T<seq> path segments."
+      ]
+    },
+    profile: {
+      title: "Profile state-edge map",
+      mini: "Configurable default transition map.",
+      does: [
+        "Maps current state names to next state names.",
+        "Ships with defaults for Backlog, Todo, HLD, and LLD edges.",
+        "Keeps IDs out of config because state IDs are project-specific."
+      ],
+      no: [
+        "Does not override a valid HTML stamp.",
+        "Does not bypass live Plane state resolution."
+      ]
+    },
+    states: {
+      title: "Live Plane states",
+      mini: "Authoritative name-to-ID lookup.",
+      does: [
+        "Resolves configured current and next state names to IDs.",
+        "Fails explicitly when a state is renamed or missing."
+      ],
+      no: [
+        "Does not assume static IDs across projects.",
+        "Does not fall back to string-only updates."
+      ]
+    },
+    decision: {
+      title: "Decision record",
+      mini: "Forward-compatible Disapprove persistence.",
+      does: [
+        "Stores doc ID, task ID, decision, state-at-decision, timestamp, and optional note.",
+        "Creates an audit trail for a future rework trigger."
+      ],
+      no: [
+        "Does not update Plane state.",
+        "Does not summon the doc agent in this ticket."
+      ]
+    },
+    worktracker: {
+      title: "Worktracker repository",
+      mini: "Existing Plane/owned backend adapter path.",
+      does: [
+        "Fetches task details and project states.",
+        "Updates task state by live state ID after the guard passes."
+      ],
+      no: [
+        "Does not own approval policy.",
+        "Does not hide errors from the approval endpoint."
+      ]
+    }
+  };
+
+  const info = document.getElementById("nodeInfo");
+  const nodes = [...document.querySelectorAll(".node")];
+  function renderNode(key) {
+    const data = nodeData[key];
+    if (!data) return;
+    nodes.forEach((node) => {
+      node.classList.toggle("active", node.dataset.node === key);
+      node.classList.toggle("dim", node.dataset.node !== key);
+    });
+    info.innerHTML = `
+      <h3>${data.title}</h3>
+      <p class="mini">${data.mini}</p>
+      <h4>Does</h4>
+      <ul class="yes">${data.does.map((item) => `<li>${item}</li>`).join("")}</ul>
+      <h4>Does not</h4>
+      <ul class="no">${data.no.map((item) => `<li>${item}</li>`).join("")}</ul>
+    `;
+  }
+  nodes.forEach((node) => node.addEventListener("click", () => renderNode(node.dataset.node)));
+  renderNode("viewer");
+
+  document.querySelectorAll(".trace").forEach((row) => {
+    row.addEventListener("mouseenter", () => renderNode(row.dataset.node));
+    row.addEventListener("click", () => {
+      document.querySelectorAll(".trace").forEach((r) => r.classList.remove("active"));
+      row.classList.add("active");
+      renderNode(row.dataset.node);
+    });
+  });
+
+  const links = [...document.querySelectorAll("nav a")];
+  const sections = links.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    links.forEach((link) => {
+      link.classList.toggle("active", link.getAttribute("href") === `#${visible.target.id}`);
+    });
+  }, { rootMargin: "-35% 0px -55% 0px", threshold: [0, .25, .5, .75] });
+  sections.forEach((section) => observer.observe(section));
+</script>
+</body>
+</html>

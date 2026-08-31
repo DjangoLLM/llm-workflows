@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tool Playground — Freedom Agents</title>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: #f6f7f9;
+      color: #17202a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    main {
+      width: min(900px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+    h1 { margin-bottom: 6px; font-size: clamp(26px, 4vw, 40px); }
+    .lede { color: #52606d; margin-bottom: 32px; line-height: 1.5; }
+    a { color: #1769aa; }
+
+    .tool-card {
+      background: #fff;
+      border: 1px solid #dde3ea;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(18,38,63,.06);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .tool-card h2 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+    .tags { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tag {
+      background: #eef2ff;
+      color: #3b4fd8;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    input[type=text] {
+      width: 100%;
+      border: 1px solid #c8d1dc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 15px;
+      background: #fbfcfd;
+      margin-bottom: 14px;
+    }
+    input[type=text]:focus { outline: 2px solid #1769aa; border-color: transparent; }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      background: #1769aa;
+      color: #fff;
+      padding: 10px 20px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #12598f; }
+    button:disabled { background: #a0b4c8; cursor: default; }
+
+    .result-box {
+      margin-top: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+      display: none;
+    }
+    .result-box.visible { display: block; }
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .result-header.success { background: #dff6e5; color: #146c2e; }
+    .result-header.error   { background: #ffe1df; color: #9c2f28; }
+    pre {
+      margin: 0;
+      background: #111827;
+      color: #eef2ff;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .timing { font-weight: 400; opacity: .75; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Tool Playground</h1>
+  <p class="lede">
+    Tools registered in <code>default_registry</code> by this host application.
+    Invoke any tool directly — no Temporal, no MCP, just the raw registry path.
+    <br><a href="{% url 'feedback:index' %}">← Back to pipeline demo</a>
+  </p>
+
+  {% if not tools %}
+    <p>No tools registered yet.</p>
+  {% endif %}
+
+  {% for tool in tools %}
+  <div class="tool-card">
+    <h2>{{ tool.name }}</h2>
+    <div class="tags">
+      <span class="tag">toolset: {{ tool.toolset }}</span>
+      {% if tool.mcp_safe %}
+        <span class="tag" style="background:#dff6e5;color:#146c2e;">mcp_safe</span>
+      {% else %}
+        <span class="tag" style="background:#fff3cd;color:#664d03;">mcp_unsafe</span>
+      {% endif %}
+    </div>
+
+    <form class="invoke-form" data-tool="{{ tool.name }}">
+      {% csrf_token %}
+      {% for field in tool.input_fields %}
+        <label for="{{ tool.name }}-{{ field }}">{{ field }}</label>
+        <input type="text" id="{{ tool.name }}-{{ field }}" name="{{ field }}"
+               placeholder="Enter {{ field }}…" autocomplete="off">
+      {% endfor %}
+      <button type="submit">Invoke tool</button>
+    </form>
+
+    <div class="result-box" id="result-{{ tool.name }}">
+      <div class="result-header" id="result-header-{{ tool.name }}"></div>
+      <pre id="result-body-{{ tool.name }}"></pre>
+    </div>
+  </div>
+  {% endfor %}
+</main>
+
+<script>
+  const invokeUrl = "{% url 'feedback:tool_invoke' %}";
+
+  document.querySelectorAll(".invoke-form").forEach(form => {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const toolName = form.dataset.tool;
+      const btn = form.querySelector("button");
+      const resultBox = document.getElementById(`result-${toolName}`);
+      const resultHeader = document.getElementById(`result-header-${toolName}`);
+      const resultBody = document.getElementById(`result-body-${toolName}`);
+
+      const input = {};
+      form.querySelectorAll("input[type=text]").forEach(inp => {
+        if (inp.value.trim() !== "") input[inp.name] = inp.value.trim();
+      });
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Invoking…';
+      resultBox.className = "result-box";
+
+      const csrfToken = form.querySelector("[name=csrfmiddlewaretoken]").value;
+      const t0 = performance.now();
+
+      try {
+        const res = await fetch(invokeUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+          body: JSON.stringify({ tool: toolName, input }),
+        });
+        const ms = Math.round(performance.now() - t0);
+        const data = await res.json();
+
+        if (res.ok) {
+          resultHeader.className = "result-header success";
+          resultHeader.innerHTML = `✓ Success <span class="timing">${ms} ms</span>`;
+          resultBody.textContent = JSON.stringify(data.output, null, 2);
+        } else {
+          resultHeader.className = "result-header error";
+          resultHeader.innerHTML = `✗ Error ${res.status} <span class="timing">${ms} ms</span>`;
+          resultBody.textContent = data.error ?? JSON.stringify(data, null, 2);
+        }
+        resultBox.className = "result-box visible";
+      } catch (err) {
+        resultHeader.className = "result-header error";
+        resultHeader.innerHTML = "✗ Network error";
+        resultBody.textContent = err.toString();
+        resultBox.className = "result-box visible";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Invoke tool";
+      }
+    });
+  });
+</script>
+</body>
+</html>

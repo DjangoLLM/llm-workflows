@@ -10,6 +10,12 @@ class FeedbackConfig(AppConfig):
     name = "feedback"
 
     def ready(self) -> None:
-        from .pipelines import register_feedback_pipeline
+        from agents.core.tools import default_registry
 
+        from .pipelines import register_feedback_pipeline
+        from .tools import EchoToolSet
+
+        default_registry.register_toolset(
+            EchoToolSet, module=self.label, expose_mcp=True
+        )
         register_feedback_pipeline()

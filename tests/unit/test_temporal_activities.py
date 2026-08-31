@@ -4,7 +4,7 @@ import asyncio
 
 from temporalio.activity import _Definition as ActivityDefinition
 
-from agents.temporal import activities
+from agents.core.temporal import activities
 
 
 def test_create_pipeline_run_activity_delegates_to_registry(monkeypatch) -> None:
@@ -14,7 +14,7 @@ def test_create_pipeline_run_activity_delegates_to_registry(monkeypatch) -> None
             assert payload == {"x": 1}
             return "run-123"
 
-    monkeypatch.setattr("agents.temporal.activities.PipelineRegistry.get", lambda _name: Pipeline)
+    monkeypatch.setattr("agents.core.temporal.activities.PipelineRegistry.get", lambda _name: Pipeline)
 
     run_id = activities.create_pipeline_run_activity("demo", {"x": 1})
 
@@ -23,7 +23,7 @@ def test_create_pipeline_run_activity_delegates_to_registry(monkeypatch) -> None
 
 def test_execute_pipeline_step_activity_delegates_to_catalog(monkeypatch) -> None:
     monkeypatch.setattr(
-        "agents.temporal.activities.StepCatalog.execute_step",
+        "agents.core.temporal.activities.StepCatalog.execute_step",
         lambda **kwargs: {"kwargs": kwargs},
     )
 
@@ -39,7 +39,7 @@ def test_execute_pipeline_step_activity_delegates_to_catalog(monkeypatch) -> Non
 
 
 def test_transform_step_to_activity_is_cached(monkeypatch) -> None:
-    monkeypatch.setattr("agents.temporal.activities.StepCatalog.get_step", lambda _key: object())
+    monkeypatch.setattr("agents.core.temporal.activities.StepCatalog.get_step", lambda _key: object())
 
     first = activities.transform_step_to_activity("custom.step")
     second = activities.transform_step_to_activity("custom.step")
@@ -50,7 +50,7 @@ def test_transform_step_to_activity_is_cached(monkeypatch) -> None:
 
 
 def test_generated_activity_dispatches_step_key(monkeypatch) -> None:
-    monkeypatch.setattr("agents.temporal.activities.StepCatalog.get_step", lambda _key: object())
+    monkeypatch.setattr("agents.core.temporal.activities.StepCatalog.get_step", lambda _key: object())
 
     generated = activities.transform_step_to_activity("custom.dispatch")
     calls: list[dict] = []
@@ -59,7 +59,7 @@ def test_generated_activity_dispatches_step_key(monkeypatch) -> None:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr("agents.temporal.activities.execute_pipeline_step_activity", fake_execute)
+    monkeypatch.setattr("agents.core.temporal.activities.execute_pipeline_step_activity", fake_execute)
 
     output = generated("run-9", "pipeline", 4, {"a": "b"})
 
@@ -69,7 +69,7 @@ def test_generated_activity_dispatches_step_key(monkeypatch) -> None:
 
 def test_get_registered_step_activities_includes_all_steps(monkeypatch) -> None:
     monkeypatch.setattr(
-        "agents.temporal.activities.StepCatalog.list_step_keys",
+        "agents.core.temporal.activities.StepCatalog.list_step_keys",
         lambda: ["correction", "custom.one", "matching", "custom.two"],
     )
 
@@ -83,7 +83,7 @@ def test_get_registered_step_activities_includes_all_steps(monkeypatch) -> None:
 
         return _activity
 
-    monkeypatch.setattr("agents.temporal.activities.transform_step_to_activity", fake_transform)
+    monkeypatch.setattr("agents.core.temporal.activities.transform_step_to_activity", fake_transform)
 
     result = activities.get_registered_step_activities()
 
@@ -103,7 +103,7 @@ def test_mark_pipeline_success_and_failure_delegate(monkeypatch) -> None:
         def mark_failure(cls, run_id: str, error: str | None = None):
             calls.append(("failure", f"{run_id}:{error}"))
 
-    monkeypatch.setattr("agents.temporal.activities.PipelineRegistry.get", lambda _name: Pipeline)
+    monkeypatch.setattr("agents.core.temporal.activities.PipelineRegistry.get", lambda _name: Pipeline)
 
     activities.mark_pipeline_success_activity("run-1", "pipe")
     activities.mark_pipeline_failed_activity("run-2", "pipe", "err")

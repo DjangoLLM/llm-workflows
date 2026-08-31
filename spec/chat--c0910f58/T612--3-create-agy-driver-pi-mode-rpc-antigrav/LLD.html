@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLD · T612 — agy driver (Pi --mode rpc / antigravity)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0c10;
+    --surface:  #13131a;
+    --surface2: #181821;
+    --border:   #22222e;
+    --border2:  #2e2e3e;
+    --text:     #d8d8e8;
+    --dim:      #55556a;
+    --new:      #f5c842;
+    --new-bg:   rgba(245,200,66,.08);
+    --green:    #4ade80;
+    --green-bg: rgba(74,222,128,.06);
+    --red:      #f87171;
+    --red-bg:   rgba(248,113,113,.06);
+    --blue:     #60a5fa;
+    --blue-bg:  rgba(96,165,250,.06);
+    --violet:   #c084fc;
+    --violet-bg:rgba(192,132,252,.06);
+    --mono:     'Courier New', 'Lucida Console', monospace;
+  }
+
+  html, body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--mono); min-height: 100vh; font-size: 13px; line-height: 1.6;
+  }
+  .page { max-width: 1040px; margin: 0 auto; padding: 40px 32px 96px; }
+
+  header {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 18px;
+  }
+  .ticket { color: var(--dim); font-size: 11px; }
+  h1 { font-size: 15px; font-weight: 700; letter-spacing: .04em; color: #fff; flex: 1; }
+  .badge { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; border: 1px solid var(--border2); color: var(--dim); }
+  .badge.built { border-color: var(--green); color: var(--green); }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 20px; }
+  .sub b { color: var(--text); font-weight: 700; }
+  .sub code, .lede code, .callout code, .body code { color: var(--text); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+
+  .decisions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .chip { border: 1px solid var(--border2); border-radius: 4px; padding: 4px 10px; font-size: 11px; display: flex; gap: 8px; align-items: baseline; }
+  .chip .k { color: var(--dim); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+  .chip .v { color: var(--violet); font-weight: 700; }
+  .chip.scope .v { color: var(--green); }
+  .chip.defer .v { color: var(--dim); }
+
+  nav { position: sticky; top: 0; z-index: 5; background: rgba(12,12,16,.92); backdrop-filter: blur(6px);
+        display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0 12px; margin-bottom: 30px; border-bottom: 1px solid var(--border); }
+  nav a { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); text-decoration: none;
+          padding: 4px 9px; border: 1px solid var(--border); border-radius: 4px; }
+  nav a:hover { color: var(--text); border-color: var(--border2); }
+  nav a.active { color: var(--new); border-color: var(--new); background: var(--new-bg); }
+
+  .label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
+  .lede { color: var(--dim); font-size: 12px; margin: -4px 0 16px; }
+  .body { font-size: 12px; color: var(--text); }
+  .body p { margin-bottom: 10px; }
+  section { margin-bottom: 48px; scroll-margin-top: 64px; }
+
+  .callout { border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; background: var(--surface); margin-bottom: 12px; display: flex; align-items: flex-start; gap: 12px; }
+  .callout.accent { border-color: var(--new); background: var(--new-bg); }
+  .callout.ok { border-color: var(--green); background: var(--green-bg); }
+  .callout.warn { border-color: var(--red); background: var(--red-bg); }
+  .callout-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .callout-title { font-weight: 700; font-size: 12px; color: #fff; margin-bottom: 4px; }
+  .callout-text { color: var(--dim); font-size: 12px; }
+  .callout-text code { color: var(--text); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+
+  .code { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .code-head { background: var(--surface); padding: 8px 16px; font-size: 11px; color: var(--dim); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .code-head .n { color: #fff; font-weight: 700; }
+  pre { padding: 14px 18px; font-size: 12px; overflow-x: auto; background: #0a0a0e; line-height: 1.7; }
+  pre .kw { color: var(--violet); }
+  pre .fn { color: var(--blue); }
+  pre .str { color: var(--green); }
+  pre .cm { color: var(--dim); font-style: italic; }
+  pre .cls { color: var(--new); }
+
+  .matrix { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .matrix th, .matrix td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; font-size: 11.5px; }
+  .matrix thead th { background: var(--surface); color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .matrix tbody th { background: var(--surface2); color: var(--text); font-weight: 700; white-space: nowrap; }
+  .matrix code { color: var(--violet); }
+  .matrix .knob { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .matrix .muted { color: var(--dim); }
+  .matrix tr.legacy-row { background: var(--blue-bg); }
+  .matrix tr.legacy-row code { color: var(--blue); }
+
+  /* decision diagram */
+  .diagram-wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
+  .diagram-card, .detail-card { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
+  .diagram-card svg { display: block; width: 100%; height: auto; background: #0a0a0e; }
+  .node { cursor: pointer; }
+  .node rect, .node ellipse { transition: stroke .15s, fill .15s; }
+  .node:hover rect, .node:hover ellipse { stroke: var(--new); }
+  .node.active rect, .node.active ellipse { stroke: var(--new); stroke-width: 2; }
+  .node text { fill: var(--text); font-family: var(--mono); font-size: 10.5px; pointer-events: none; }
+  .node text.sublabel { fill: var(--dim); font-size: 9px; }
+  .edge { fill: none; stroke: var(--border2); stroke-width: 1.4; marker-end: url(#arrow); }
+  .edge.writes { stroke: var(--green); }
+  .edge.ro { stroke: var(--blue); }
+  .edge.inter { stroke: var(--violet); stroke-dasharray: 4 3; }
+  .edge-label { fill: var(--dim); font-size: 9px; font-family: var(--mono); }
+  .detail-card { padding: 16px 18px; min-height: 340px; }
+  .detail-card .dt-title { color: var(--new); font-weight: 700; font-size: 12px; margin-bottom: 8px; }
+  .detail-card .dt-role { color: var(--text); font-size: 12px; margin-bottom: 10px; }
+  .detail-card .dt-h { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin: 12px 0 6px; }
+  .detail-card ul { list-style: none; }
+  .detail-card li { font-size: 11.5px; padding: 2px 0 2px 14px; position: relative; color: var(--text); }
+  .detail-card li.does::before { content: '+'; color: var(--green); position: absolute; left: 0; }
+  .detail-card li.not::before { content: '\2212'; color: var(--red); position: absolute; left: 0; }
+  .detail-card li.not { color: var(--dim); }
+  .detail-card code { color: var(--blue); }
+
+  .test-list { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .test-item { padding: 9px 16px; font-size: 11.5px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 14px; align-items: center; }
+  .test-item:last-child { border-bottom: none; }
+  .test-item .tn { color: var(--green); }
+  .test-item .td { color: var(--dim); }
+  .test-item .pass { color: var(--green); font-weight: 700; }
+
+  .files-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .file-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .file-name { padding: 9px 14px; font-size: 11px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); font-weight: 700; }
+  .file-name .path-prefix { color: var(--dim); font-weight: 400; }
+  .file-name .tag { float: right; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; }
+  .file-name .tag.new { background: var(--new); color: #000; }
+  .file-name .tag.mod { background: var(--blue); color: #000; }
+  .file-card .fd { padding: 8px 14px; font-size: 11px; color: var(--dim); }
+  .file-card .fd code { color: var(--violet); }
+
+  @media (max-width: 760px) {
+    .diagram-wrap, .files-grid { grid-template-columns: 1fr; }
+    .test-item { grid-template-columns: 1fr; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <span class="ticket">CODIN · T612</span>
+    <h1>agy driver — Pi <code style="font-size:13px;color:#fff;background:none;padding:0;">--mode rpc</code> / antigravity — Low-Level Design</h1>
+    <span class="badge built">As-Built ✓</span>
+  </header>
+  <div class="sub">
+    Land the <b>agy</b> driver — the <code>pi --mode rpc</code> wrapper, provider <code>google-antigravity</code>. The genuinely-new
+    work is the <b>policy → flag mapping</b> on <code>PiCLIWrapper.build_command</code> and the one-line <b>registry</b> entry.
+    This document records the <b>as-built</b> state: every deliverable is implemented in
+    <code>DjangoAgent/coding-agent-drivers/src/coding_agents/</code> and covered by passing tests. Depends on subtask&nbsp;1 (support structure, T610). Ref: T606 LLD §5 (agy column).
+  </div>
+
+  <div class="decisions">
+    <div class="chip"><span class="k">alias</span><span class="v">agy</span></div>
+    <div class="chip"><span class="k">class</span><span class="v">PiCLIWrapper</span></div>
+    <div class="chip"><span class="k">provider</span><span class="v">google-antigravity</span></div>
+    <div class="chip"><span class="k">default model</span><span class="v">gemini-3-flash</span></div>
+    <div class="chip scope"><span class="k">tests</span><span class="v">35 / 35 pass</span></div>
+    <div class="chip defer"><span class="k">no-op knob</span><span class="v">auto_approve</span></div>
+  </div>
+
+  <nav id="nav">
+    <a href="#scope">Scope</a>
+    <a href="#tree">build_command</a>
+    <a href="#matrix">Policy → flags</a>
+    <a href="#registry">Registry</a>
+    <a href="#files">Change map</a>
+    <a href="#tests">Tests</a>
+    <a href="#accept">Acceptance</a>
+  </nav>
+
+  <!-- SCOPE -->
+  <section id="scope">
+    <div class="label">1 · What's genuinely new</div>
+    <div class="lede">The subprocess plumbing, streaming and event parsing already live in <code>BaseCLIWrapper</code> (T610). T612 adds only two things: the policy mapping and the registry wire.</div>
+    <div class="body">
+      <p><b>One actionable knob.</b> Pi in RPC mode has <i>no</i> approval/sandbox dialog — tool calls auto-execute — so a policy's <code>auto_approve</code> is inherently satisfied and is a genuine no-op for agy. The only knob pi exposes is a tool allowlist, so <code>allow_writes</code> is the one that maps to flags.</p>
+      <p><b>Backward-compatible.</b> The <code>policy=</code> kwarg is optional. Absent a policy, <code>build_command</code> falls through to the legacy <code>tools_enabled</code> toggle and emits byte-identical args to the pre-T612 wrapper — no existing caller changes behavior.</p>
+    </div>
+    <div class="callout accent">
+      <span class="callout-icon">★</span>
+      <div>
+        <div class="callout-title">Confirmed against <code>pi --help</code>.</div>
+        <div class="callout-text">
+          pi exposes only <code>--tools read,bash,edit,write</code> (its default) or <code>--no-tools</code>. There is no
+          interactive-approval surface in rpc mode. <code>interactive=True</code> is the escalation path: drop <code>--mode rpc</code>
+          and hand pi the terminal as a native TUI.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISION TREE -->
+  <section id="tree">
+    <div class="label">2 · build_command — the policy branch</div>
+    <div class="lede">Click a leaf to see the exact argv it emits and why. Three policy-driven branches plus the legacy fall-through.</div>
+    <div class="diagram-wrap">
+      <div class="diagram-card">
+        <svg viewBox="0 0 480 380" role="img" aria-label="build_command decision tree">
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#2e2e3e"/>
+            </marker>
+          </defs>
+
+          <!-- root -->
+          <g class="node" data-k="root">
+            <rect x="170" y="16" width="140" height="40" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="240" y="33" text-anchor="middle">build_command</text>
+            <text x="240" y="47" text-anchor="middle" class="sublabel">(prompt, fmt, policy?)</text>
+          </g>
+
+          <!-- decision: policy.interactive? -->
+          <path class="edge" d="M240,56 L240,82"/>
+          <g class="node" data-k="q1">
+            <rect x="168" y="84" width="144" height="34" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="240" y="105" text-anchor="middle">policy.interactive?</text>
+          </g>
+
+          <!-- interactive branch -->
+          <path class="edge inter" d="M312,101 C400,101 420,101 420,140"/>
+          <text x="360" y="96" class="edge-label">yes</text>
+          <g class="node" data-k="inter">
+            <rect x="360" y="142" width="112" height="44" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="416" y="160" text-anchor="middle">native TUI</text>
+            <text x="416" y="174" text-anchor="middle" class="sublabel">no --mode rpc</text>
+          </g>
+
+          <!-- no -> rpc base -->
+          <path class="edge" d="M240,118 L240,144"/>
+          <text x="252" y="135" class="edge-label">no</text>
+          <g class="node" data-k="base">
+            <rect x="158" y="146" width="164" height="44" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="240" y="164" text-anchor="middle">pi --mode rpc</text>
+            <text x="240" y="178" text-anchor="middle" class="sublabel">--no-session +provider/model</text>
+          </g>
+
+          <!-- decision: policy present? -->
+          <path class="edge" d="M240,190 L240,216"/>
+          <g class="node" data-k="q2">
+            <rect x="170" y="218" width="140" height="34" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="240" y="239" text-anchor="middle">policy is None?</text>
+          </g>
+
+          <!-- legacy branch (policy None) -->
+          <path class="edge" d="M170,235 C70,235 50,235 50,288"/>
+          <text x="95" y="230" class="edge-label">yes → legacy</text>
+          <g class="node" data-k="legacy">
+            <rect x="6" y="290" width="120" height="46" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="66" y="308" text-anchor="middle">tools_enabled</text>
+            <text x="66" y="322" text-anchor="middle" class="sublabel">--tools / --no-tools</text>
+          </g>
+
+          <!-- allow_writes? -->
+          <path class="edge" d="M240,252 L240,288"/>
+          <text x="252" y="272" class="edge-label">no</text>
+          <g class="node" data-k="q3">
+            <rect x="170" y="290" width="140" height="34" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="240" y="311" text-anchor="middle">allow_writes?</text>
+          </g>
+
+          <!-- writes -->
+          <path class="edge writes" d="M310,307 C350,307 360,307 360,338"/>
+          <text x="330" y="302" class="edge-label">on</text>
+          <g class="node" data-k="writes">
+            <rect x="300" y="340" width="174" height="34" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="387" y="361" text-anchor="middle">--tools read,bash,edit,write</text>
+          </g>
+
+          <!-- read only -->
+          <path class="edge ro" d="M180,324 C150,324 140,324 140,338"/>
+          <text x="120" y="335" class="edge-label">off</text>
+          <g class="node" data-k="ro">
+            <rect x="44" y="340" width="120" height="34" rx="5" fill="#181821" stroke="#2e2e3e"/>
+            <text x="104" y="361" text-anchor="middle">--tools read</text>
+          </g>
+        </svg>
+      </div>
+      <div class="detail-card" id="detail">
+        <div class="dt-title">Pick a node</div>
+        <div class="dt-role">Click any box in the tree to see the exact argv it produces and the reasoning behind it.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MATRIX -->
+  <section id="matrix">
+    <div class="label">3 · Policy state → agy flags</div>
+    <div class="lede">The agy column of T606 LLD §5, as shipped. <code>provider</code>, <code>model</code> and <code>--thinking</code> are always emitted in rpc mode; only the tail differs.</div>
+    <table class="matrix">
+      <thead>
+        <tr><th>Policy state</th><th>agy (<code style="color:inherit;background:none;padding:0;">pi --mode rpc</code>) tail</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="knob">default<br>auto_approve + allow_writes</th>
+          <td><code>--tools read,bash,edit,write</code></td>
+          <td class="muted">Full coding posture; matches pi's own default. RPC auto-executes tool calls — no approval prompt to suppress.</td>
+        </tr>
+        <tr>
+          <th class="knob">allow_writes = False<br>review / plan</th>
+          <td><code>--tools read</code></td>
+          <td class="muted">Model can inspect but not mutate or run commands.</td>
+        </tr>
+        <tr>
+          <th class="knob">interactive = True<br>escalation</th>
+          <td><code>pi</code> (no <code>--mode rpc</code>)</td>
+          <td class="muted">Drop non-interactive flags; pi owns the terminal as a native TUI. <code>output_format</code> ignored.</td>
+        </tr>
+        <tr class="legacy-row">
+          <th class="knob">no policy<br>legacy tools_enabled=True</th>
+          <td><code>--tools</code> <span class="muted">(bare)</span></td>
+          <td class="muted">Byte-identical to the pre-T612 wrapper. <code>tools_enabled=False</code> → <code>--no-tools</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- REGISTRY -->
+  <section id="registry">
+    <div class="label">4 · Registry wire — one factory</div>
+    <div class="lede"><code>get_coding_agent("agy")</code> resolves to a <code>PiCLIWrapper</code> pinned to <code>google-antigravity</code>; the caller's <code>model</code> is honored, defaulting to <code>gemini-3-flash</code>.</div>
+    <div class="code">
+      <div class="code-head"><span class="n">registry.py</span><span>_make_agy</span></div>
+<pre><span class="kw">def</span> <span class="fn">_make_agy</span>(working_dir: Path, model: Optional[str]) -> CodingAgent:
+    <span class="kw">return</span> <span class="cls">PiCLIWrapper</span>(
+        provider=<span class="str">"google-antigravity"</span>,
+        model=model <span class="kw">or</span> <span class="str">"gemini-3-flash"</span>,
+        working_dir=working_dir,
+    )
+
+_REGISTRY = {<span class="str">"codex"</span>: _make_codex, <span class="str">"agy"</span>: _make_agy}
+<span class="cm"># Unknown name → UnknownCodingAgent(name, known=["agy","codex"])</span></pre>
+    </div>
+  </section>
+
+  <!-- CHANGE MAP -->
+  <section id="files">
+    <div class="label">5 · File change map</div>
+    <div class="lede">Two source files carry the T612 deltas; one test file proves them. All under <code>coding-agent-drivers/</code>.</div>
+    <div class="files-grid">
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">src/coding_agents/</span>pi.py <span class="tag mod">policy</span></div>
+        <div class="fd"><code>build_command</code> gains <code>policy=</code>; <code>WRITE_TOOLS</code> / <code>READ_ONLY_TOOLS</code> constants; interactive → drop <code>--mode rpc</code>; legacy fall-through preserved.</div>
+      </div>
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">src/coding_agents/</span>registry.py <span class="tag mod">wire</span></div>
+        <div class="fd"><code>_make_agy</code> factory + <code>"agy"</code> entry in <code>_REGISTRY</code>.</div>
+      </div>
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">src/coding_agents/</span>policy.py <span class="tag mod">dep</span></div>
+        <div class="fd">Supplies <code>NonInteractivePolicy</code> (<code>allow_writes</code>, <code>interactive</code>) consumed by the mapping. Landed in T610.</div>
+      </div>
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">tests/</span>test_cli_wrappers.py <span class="tag new">tests</span></div>
+        <div class="fd">4 agy tests: registry resolution, writes/read mapping, legacy preservation, interactive escalation.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTS -->
+  <section id="tests">
+    <div class="label">6 · Test coverage — the deliverable checklist</div>
+    <div class="lede">Each ticket deliverable maps to a named test. Suite: <code>35 passed in 0.07s</code>.</div>
+    <div class="test-list">
+      <div class="test-item">
+        <span class="tn">test_get_coding_agent_returns_codex_and_agy</span>
+        <span class="td"><span class="pass">✓</span> <code>get_coding_agent("agy")</code> → PiCLIWrapper, provider google-antigravity, model honored</span>
+      </div>
+      <div class="test-item">
+        <span class="tn">test_agy_policy_maps_allow_writes_to_tools</span>
+        <span class="td"><span class="pass">✓</span> writes → <code>read,bash,edit,write</code>; read-only → <code>read</code></span>
+      </div>
+      <div class="test-item">
+        <span class="tn">test_agy_no_policy_preserves_legacy_tools_flag</span>
+        <span class="td"><span class="pass">✓</span> absent policy → bare <code>--tools</code> (byte-identical legacy)</span>
+      </div>
+      <div class="test-item">
+        <span class="tn">test_agy_interactive_drops_rpc_mode</span>
+        <span class="td"><span class="pass">✓</span> interactive → no <code>--mode</code>, no <code>rpc</code></span>
+      </div>
+      <div class="test-item">
+        <span class="tn">test_get_coding_agent_unknown_name_lists_known</span>
+        <span class="td"><span class="pass">✓</span> unknown alias → <code>UnknownCodingAgent(known=["agy","codex"])</code></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCEPTANCE -->
+  <section id="accept">
+    <div class="label">7 · Acceptance</div>
+    <div class="callout ok">
+      <span class="callout-icon">✓</span>
+      <div>
+        <div class="callout-title">All T612 deliverables implemented and validated.</div>
+        <div class="callout-text">
+          <code>policy=</code> kwarg with allow-writes → <code>--tools</code> allowlist mapping, interactive escalation that drops
+          <code>--mode rpc</code>, byte-identical legacy fall-through, and the <code>"agy"</code> → <code>google-antigravity</code>
+          registry entry — all present in <code>coding-agent-drivers/src/coding_agents/</code>, with 4 dedicated tests green inside a
+          35/35 suite. Depends-on T610 (support structure) satisfied. Nothing remains to build.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // node detail panel
+  var DETAIL = {
+    root:   {t:"build_command(prompt, output_format, policy=None)", r:"Single entry point. The optional policy= kwarg is the whole T612 surface; everything below branches on it.", does:["Always passes through provider / model / --thinking in rpc mode"], not:["Does not mutate global state — pure argv builder"]},
+    q1:     {t:"policy.interactive?", r:"First gate. Interactive is the escalation path and short-circuits before any rpc flags are added.", does:["interactive only true when a policy is supplied AND policy.interactive"], not:["A bare/absent policy is never interactive"]},
+    inter:  {t:"Interactive → native TUI", r:"Return ['pi', --provider, --model, --thinking]. No --mode rpc, no tool flags. pi owns the terminal.", does:["Honors provider / model / thinking_level","output_format is intentionally ignored"], not:["Emits no --mode rpc","Emits no --no-session","Emits no --tools"]},
+    base:   {t:"RPC base command", r:"['pi','--mode','rpc','--no-session'] then provider / model / --thinking. The shared prefix for all non-interactive runs.", does:["--no-session — stateless one-shot","provider defaults to google-antigravity"], not:["No tool posture decided yet — that's the next gate"]},
+    q2:     {t:"policy is None?", r:"Decides legacy vs policy-driven tool posture. This is the backward-compat seam.", does:["None → legacy path (pre-T612 behavior)","not None → allow_writes drives the allowlist"], not:[]},
+    legacy: {t:"Legacy tools_enabled toggle", r:"No policy supplied. Preserves the exact pre-T612 output: append bare '--tools' when tools_enabled, else '--no-tools'.", does:["Byte-identical to the original wrapper","tools_enabled defaults to True → '--tools'"], not:["No allowlist value is appended in this path"]},
+    q3:     {t:"allow_writes?", r:"The one actionable policy knob for agy. Selects the tool allowlist value.", does:["Reached only when a policy is present and non-interactive"], not:["auto_approve is not consulted — RPC has no approval surface"]},
+    writes: {t:"allow_writes on → full allowlist", r:"Append ['--tools','read,bash,edit,write'] — the full coding posture, matching pi's own default.", does:["Model can read, run bash, edit and write files"], not:[]},
+    ro:     {t:"allow_writes off → read-only", r:"Append ['--tools','read']. A non-mutating review / plan run.", does:["Model can inspect files"], not:["Cannot run bash","Cannot edit or write files"]}
+  };
+  var detail = document.getElementById('detail');
+  function render(k){
+    var d = DETAIL[k]; if(!d) return;
+    var h = '<div class="dt-title">'+d.t+'</div><div class="dt-role">'+d.r+'</div>';
+    if(d.does && d.does.length){ h+='<div class="dt-h">Does</div><ul>'+d.does.map(function(x){return '<li class="does">'+x+'</li>';}).join('')+'</ul>'; }
+    if(d.not && d.not.length){ h+='<div class="dt-h">Does not</div><ul>'+d.not.map(function(x){return '<li class="not">'+x+'</li>';}).join('')+'</ul>'; }
+    detail.innerHTML = h;
+  }
+  document.querySelectorAll('.node').forEach(function(n){
+    n.addEventListener('click', function(){
+      document.querySelectorAll('.node.active').forEach(function(a){a.classList.remove('active');});
+      n.classList.add('active');
+      render(n.getAttribute('data-k'));
+    });
+  });
+
+  // nav scroll-spy
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var secs = links.map(function(l){ return document.querySelector(l.getAttribute('href')); });
+  function spy(){
+    var y = window.scrollY + 90, idx = 0;
+    secs.forEach(function(s,i){ if(s && s.offsetTop <= y) idx = i; });
+    links.forEach(function(l,i){ l.classList.toggle('active', i===idx); });
+  }
+  window.addEventListener('scroll', spy, {passive:true}); spy();
+</script>
+</body>
+</html>

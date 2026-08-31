@@ -13,4 +13,6 @@ urlpatterns = [
     path("start/", views.start, name="start"),
     path("runs/<uuid:run_id>/", views.index, name="run_detail"),
     path("runs/<uuid:run_id>/status/", views.run_status, name="run_status"),
+    path("tools/", views.tool_playground, name="tool_playground"),
+    path("tools/invoke/", views.tool_invoke, name="tool_invoke"),
 ]

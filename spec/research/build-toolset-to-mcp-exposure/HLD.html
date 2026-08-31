@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>HLD — register(..., expose_mcp=...) for freedom-agents tools</title>
+<style>
+  :root {
+    --bg: #fbfbf9;
+    --fg: #1c1c1c;
+    --muted: #6a6a6a;
+    --accent: #1e6f5c;
+    --accent-soft: #e7f1ee;
+    --warn: #b25c00;
+    --warn-soft: #fbeedb;
+    --code-bg: #f1efe9;
+    --rule: #e4e2dc;
+  }
+  html { background: var(--bg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    color: var(--fg);
+    max-width: 760px;
+    margin: 2.5rem auto;
+    padding: 0 1.25rem;
+    line-height: 1.55;
+    font-size: 15.5px;
+  }
+  h1 { font-size: 1.55rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.05rem; margin: 1.8rem 0 .5rem; border-bottom: 1px solid var(--rule); padding-bottom: .25rem; }
+  h3 { font-size: .95rem; margin: 1.2rem 0 .35rem; color: var(--accent); }
+  .meta { color: var(--muted); font-size: .85rem; margin-bottom: 1.2rem; }
+  code, pre { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: .88em; }
+  pre {
+    background: var(--code-bg);
+    padding: .8rem 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: .82rem;
+    line-height: 1.5;
+    border: 1px solid var(--rule);
+  }
+  pre code { background: transparent; padding: 0; }
+  ul { padding-left: 1.25rem; }
+  li { margin: .25rem 0; }
+  .box {
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin: .75rem 0;
+    font-size: .92rem;
+  }
+  .decided { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+  .open    { background: var(--warn-soft);   border-left: 3px solid var(--warn);   }
+  .label {
+    display: inline-block;
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: .35rem;
+    vertical-align: 1px;
+  }
+  .label.decided { background: var(--accent); color: white; }
+  .label.open    { background: var(--warn);   color: white; }
+  .small { color: var(--muted); font-size: .85rem; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .88rem; }
+  td, th { border: 1px solid var(--rule); padding: .35rem .6rem; text-align: left; }
+  th { background: var(--code-bg); }
+</style>
+</head>
+<body>
+
+<h1>HLD: <code>register(..., expose_mcp=&hellip;)</code> for freedom-agents tools</h1>
+<p class="meta">Plane #396 &middot; scope: freedom-agents substructure only &middot; builds on #380 (tools registry)</p>
+
+<h2>1 &middot; Goal</h2>
+<p>
+  Make MCP exposure a flag on tool registration. After this lands, turning a registered tool into part of an MCP server is one keyword argument; no per-toolset boilerplate, no separate server files.
+</p>
+<pre><code># Before: write a bespoke FastMCP server per toolset (see plane_agent/mcp/)
+# After:
+default_registry.register(EchoTool(), expose_mcp="demo")
+default_registry.register(SearchWebTool(), expose_mcp="research")
+default_registry.register(ScrapeUrlTool(), expose_mcp="research")
+# Boot Django -> two FastMCP servers come up: "demo" and "research".</code></pre>
+
+<h2>2 &middot; In / out of scope</h2>
+<ul>
+  <li><strong>In:</strong> the <code>expose_mcp</code> argument; the in-process server-supervisor that owns one <code>FastMCP</code> per group key; an adapter from the <code>Tool</code> Protocol to a FastMCP-compatible callable.</li>
+  <li><strong>Out:</strong> any new tool implementations; migrating <code>plane_agent/mcp/</code> (left alone); STDIO transport; auth; multi-agent fan-out; pi-side spawning.</li>
+</ul>
+
+<h2>3 &middot; Architecture</h2>
+<p>Three pieces, all inside <code>agents/tools/</code>:</p>
+<table>
+  <tr><th>Component</th><th>Responsibility</th></tr>
+  <tr>
+    <td><code>ToolRegistry.register(tool, *, expose_mcp=None)</code></td>
+    <td>Stores tool. If <code>expose_mcp</code> is a string key, also enrolls tool into <code>McpServerSupervisor</code> under that key.</td>
+  </tr>
+  <tr>
+    <td><code>agents/tools/mcp/adapter.py</code></td>
+    <td>Wraps a <code>Tool</code> (Protocol from #380) into a FastMCP-registerable callable: builds a signature from <code>tool.input_model</code>, calls <code>tool.run(validated)</code>, dumps the <code>output_model</code>.</td>
+  </tr>
+  <tr>
+    <td><code>agents/tools/mcp/supervisor.py</code></td>
+    <td>Lazy dict <code>key &rarr; FastMCP</code>. On first enroll for a key, constructs <code>FastMCP(key)</code>; on Django boot, starts each in its own daemon thread on its configured port.</td>
+  </tr>
+</table>
+
+<h3>3.1 &middot; Tool &rarr; FastMCP adapter</h3>
+<p>
+  The <code>Tool</code> Protocol already gives us <code>input_model</code> and <code>output_model</code> (pydantic). FastMCP introspects callables for parameter names/types, so the adapter generates a function whose parameters mirror <code>input_model</code> fields and whose body does <code>tool.run(input_model(**kwargs))</code>. Structurally the same trick as <code>_wrap_plane_tool</code>, but driven by the schema instead of a method signature &mdash; cleaner because <code>Tool</code> has the schema explicitly.
+</p>
+
+<h3>3.2 &middot; Supervisor lifecycle</h3>
+<ul>
+  <li><code>AgentsConfig.ready()</code> checks <code>sys.argv</code>: if and only if the management command is <code>runserver</code>, it calls <code>McpServerSupervisor.start_all()</code> after the existing catalog validations. Other commands (<code>migrate</code>, <code>shell</code>, <code>test</code>, <code>run_temporal_worker</code>) skip it entirely.</li>
+  <li>Ports are assigned in registration order starting at <code>8200</code>: first enrolled group &rarr; <code>8200</code>, next &rarr; <code>8201</code>, and so on. The supervisor logs <code>mcp.server.bound group=&lt;key&gt; port=&lt;n&gt;</code> for each.</li>
+  <li>Each <code>FastMCP</code> server runs on its own daemon thread via <code>fastmcp</code>'s HTTP transport.</li>
+  <li>No explicit stop: daemon threads die with the Django process. Acceptable for the in-process model.</li>
+</ul>
+
+<h2>4 &middot; What changes in code</h2>
+<pre><code># agents/tools/registry.py
+class ToolRegistry:
+    def register(self, tool: Tool, *, expose_mcp: str | None = None) -> None:
+        if tool.name in self._tools:
+            raise ValueError(f"Tool '{tool.name}' is already registered.")
+        self._tools[tool.name] = tool
+        if expose_mcp:
+            from agents.core.tools.mcp.supervisor import McpServerSupervisor
+            McpServerSupervisor.enroll(group=expose_mcp, tool=tool)
+
+# agents/apps.py  (additions only)
+import sys
+
+def ready(self):
+    ...  # existing catalog registrations + validation
+    if "runserver" in sys.argv:
+        from agents.core.tools.mcp.supervisor import McpServerSupervisor
+        McpServerSupervisor.start_all()</code></pre>
+<p class="small">
+  Nothing else touches existing files. <code>plane_agent/mcp/</code> stays as-is. <code>default_registry</code> keeps current behavior when callers don't pass <code>expose_mcp</code>.
+</p>
+
+<h2>5 &middot; Decisions taken</h2>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Server granularity:</strong> per group key. <code>expose_mcp="research"</code> aggregates tools sharing that key into one server. Multiple keys &rarr; multiple servers.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Lifecycle:</strong> in-process daemon threads inside the Django process.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Boot gating:</strong> servers only start when Django is launched via <code>runserver</code>. Detected by inspecting <code>sys.argv</code> inside <code>AgentsConfig.ready()</code>. <code>migrate</code>, <code>shell</code>, <code>test</code>, <code>run_temporal_worker</code>, etc. do not open ports.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Port allocation:</strong> auto-increment starting at <code>8200</code>. First enrolled group gets <code>8200</code>, next <code>8201</code>, etc., in registration order. No config knob. A logger line prints <code>group=&lt;key&gt; port=&lt;n&gt;</code> at boot so the binding is discoverable.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong><code>fastmcp</code> dependency:</strong> hard dependency in <code>freedom-agents</code>'s <code>pyproject.toml</code>. No optional-extras dance.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Server name = group key.</strong> <code>FastMCP(key)</code>. No separate name argument.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Existing code:</strong> <code>plane_agent/mcp/</code> is not touched. This HLD only builds the freedom-agents substructure; no Plane migration in this story.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Flag location:</strong> argument on <code>register()</code>, not a field on the <code>Tool</code> Protocol. Keeps tool authoring independent of deployment shape.
+</div>
+
+<div class="box decided">
+  <span class="label decided">decided</span>
+  <strong>Transport:</strong> HTTP. STDIO is explicitly out of scope.
+</div>
+
+<h2>6 &middot; Decisions deferred</h2>
+
+<div class="box open">
+  <span class="label open">defer</span>
+  <strong>Name collisions across groups.</strong> Registry currently enforces global-unique tool names, so this can't bite us yet. Revisit if/when we want the same tool name to live in two groups; not part of #396.
+</div>
+
+<h2>7 &middot; Out of scope (explicit, to prevent scope creep)</h2>
+<ul>
+  <li>Migrating <code>PlaneToolset</code> to the registry &mdash; separate ticket, once the pattern is proven.</li>
+  <li>STDIO subprocess model for pi-spawned agents.</li>
+  <li>Auth, rate limiting, observability on the MCP servers &mdash; revisit when there's a real client beyond local dev.</li>
+  <li>A formal <code>ToolSet</code> base class &mdash; not needed for this story.</li>
+</ul>
+
+<h2>8 &middot; Ticket impact</h2>
+<ul>
+  <li><strong>#396</strong> &mdash; covers &sect;3 and &sect;4, plus tests for the adapter and supervisor enroll/start path.</li>
+  <li><strong>Follow-ups (separate tickets):</strong> migrate <code>plane_agent/mcp/</code> onto the registry; <code>manage.py</code> command listing bound ports per group; STDIO transport.</li>
+</ul>
+
+</body>
+</html>

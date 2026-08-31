@@ -4,10 +4,10 @@ from typing import Optional
 
 import pytest
 
-from agents.agent import AgentConfig
-from agents.agent_config_catalog import AgentConfigCatalog
-from agents.pipeline_structure import PipelineStep
-from agents.step_catalog import StepCatalog, StepExecutionType
+from agents.core.agent import AgentConfig
+from agents.core.agent_config_catalog import AgentConfigCatalog
+from agents.core.pipeline_structure import PipelineStep
+from agents.core.step_catalog import StepCatalog, StepExecutionType
 
 
 class LLMStep(PipelineStep):
@@ -76,7 +76,7 @@ def test_register_rejects_duplicate_step_key() -> None:
 
 def test_validate_rejects_non_pipeline_step_class(monkeypatch) -> None:
     StepCatalog.register_step("bad", "fake", NotAPipelineStep, StepExecutionType.CODE)
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
 
     with pytest.raises(TypeError, match="must inherit PipelineStep"):
         StepCatalog.validate_registry()
@@ -84,7 +84,7 @@ def test_validate_rejects_non_pipeline_step_class(monkeypatch) -> None:
 
 def test_validate_rejects_missing_pipeline_mapping(monkeypatch) -> None:
     StepCatalog.register_step("llm", "missing", LLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: MissingKeyPipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: MissingKeyPipeline)
 
     with pytest.raises(ValueError, match="missing from pipeline"):
         StepCatalog.validate_registry()
@@ -92,7 +92,7 @@ def test_validate_rejects_missing_pipeline_mapping(monkeypatch) -> None:
 
 def test_validate_rejects_llm_without_config(monkeypatch) -> None:
     StepCatalog.register_step("bare", "fake", BareLLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
 
     with pytest.raises(ValueError, match="requires agent_config_key or agent_config property"):
         StepCatalog.validate_registry()
@@ -100,7 +100,7 @@ def test_validate_rejects_llm_without_config(monkeypatch) -> None:
 
 def test_execute_step_rejects_pipeline_mismatch(monkeypatch) -> None:
     StepCatalog.register_step("llm", "fake", LLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
 
     with pytest.raises(ValueError, match="belongs to 'fake', not 'other'"):
         StepCatalog.execute_step(
@@ -121,7 +121,7 @@ def test_execute_step_resolves_agent_config_from_catalog(monkeypatch) -> None:
         StepExecutionType.LLM,
         agent_config_key="cfg",
     )
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
 
     result = StepCatalog.execute_step(
         run_id="run-2",
@@ -138,7 +138,7 @@ def test_execute_step_resolves_agent_config_from_catalog(monkeypatch) -> None:
 
 def test_execute_step_for_code_step_has_no_agent_config(monkeypatch) -> None:
     StepCatalog.register_step("code", "fake", CodeStep, StepExecutionType.CODE)
-    monkeypatch.setattr("agents.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
 
     result = StepCatalog.execute_step(
         run_id="run-3",

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pi Agent × MCP Bridge</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3e;
+    --accent: #7c6af7;
+    --accent2: #4ecdc4;
+    --accent3: #f7c06a;
+    --text: #e2e4f0;
+    --muted: #6b7080;
+    --ts: #3178c6;
+    --py: #3572a5;
+    --mcp: #e44d26;
+    --temporal: #f7c06a;
+    --code-bg: #13151f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 24px;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    color: var(--muted);
+    margin-bottom: 48px;
+    font-size: 15px;
+  }
+  .wrapper { max-width: 1100px; margin: 0 auto; }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 56px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .flow-step {
+    flex: 1;
+    padding: 24px 20px;
+    position: relative;
+    border-right: 1px solid var(--border);
+  }
+  .flow-step:last-child { border-right: none; }
+  .flow-step::after {
+    content: '→';
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 18px;
+    z-index: 2;
+    background: var(--surface);
+    padding: 2px 0;
+  }
+  .flow-step:last-child::after { display: none; }
+  .step-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .step-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .step-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .badge-py   { background: rgba(53,114,165,0.25); color: #7ab8f5; border: 1px solid rgba(53,114,165,0.4); }
+  .badge-ts   { background: rgba(49,120,198,0.25); color: #64a8f5; border: 1px solid rgba(49,120,198,0.4); }
+  .badge-mcp  { background: rgba(228,77,38,0.2);   color: #f0826a; border: 1px solid rgba(228,77,38,0.35); }
+  .badge-tmp  { background: rgba(247,192,106,0.2); color: #f7c06a; border: 1px solid rgba(247,192,106,0.35); }
+
+  /* ── Section headers ── */
+  .section { margin-bottom: 48px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Code cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+  .card-file {
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--accent2);
+  }
+  .card-desc { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .card-body { padding: 0; }
+  pre {
+    margin: 0;
+    padding: 20px 22px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    tab-size: 4;
+  }
+
+  /* ── Syntax colours ── */
+  .kw   { color: #c792ea; }
+  .fn   { color: #82aaff; }
+  .cls  { color: #ffcb6b; }
+  .str  { color: #c3e88d; }
+  .cmt  { color: #546e7a; font-style: italic; }
+  .dec  { color: #f07178; }
+  .num  { color: #f78c6c; }
+  .ts-kw    { color: #89ddff; }
+  .ts-type  { color: #ffcb6b; }
+  .ts-fn    { color: #82aaff; }
+  .ts-str   { color: #c3e88d; }
+  .ts-cmt   { color: #546e7a; font-style: italic; }
+  .ts-dec   { color: #f07178; }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    background: rgba(124,106,247,0.08);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #c5c9e0;
+  }
+  .callout strong { color: var(--text); }
+
+  /* ── Side-by-side ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } .flow { flex-direction: column; } .flow-step::after { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <h1>Pi Agent × MCP Bridge</h1>
+  <p class="subtitle">How a TypeScript LLM worker uses Python-registered tools — without touching MCP itself.</p>
+
+  <!-- ── Flow ── -->
+  <div class="flow">
+    <div class="flow-step">
+      <span class="badge badge-tmp">Temporal</span>
+      <div class="step-title">Workflow starts</div>
+      <div class="step-desc">Python <code>PiMcpLoopWorkflow</code> orchestrates the whole turn. Knows the toolset name; kicks off activities.</div>
+    </div>
+    <div class="flow-step">
+      <span class="badge badge-mcp">MCP · Python</span>
+      <div class="step-title">List tools</div>
+      <div class="step-desc">Activity spawns <code>run_tools_mcp --toolset echo</code> as an STDIO subprocess. FastMCP client calls <code>list_tools()</code> and translates to plain JSON schemas.</div>
+    </div>
+    <div class="flow-step">
+      <span class="badge badge-ts">TypeScript</span>
+      <div class="step-title">piInference</div>
+      <div class="step-desc">Tool schemas arrive as <code>PiInferenceTool[]</code>. LLM sees them as native tools. If it picks one it returns <code>toolCalls</code>. Zero MCP knowledge here.</div>
+    </div>
+    <div class="flow-step">
+      <span class="badge badge-mcp">MCP · Python</span>
+      <div class="step-title">Call tool</div>
+      <div class="step-desc">Activity spawns a new STDIO subprocess, calls <code>call_tool(name, args)</code>, returns the structured output as JSON.</div>
+    </div>
+    <div class="flow-step">
+      <span class="badge badge-tmp">Temporal</span>
+      <div class="step-title">Loop / return</div>
+      <div class="step-desc">Workflow stitches the tool result into the next user message and re-calls <code>piInference</code> until no more <code>toolCalls</code>.</div>
+    </div>
+  </div>
+
+  <!-- ── 1. Tool contract ── -->
+  <div class="section">
+    <div class="section-header">
+      <h2>1 · What the pi-worker expects</h2>
+      <div class="section-pill badge badge-ts">TypeScript · unchanged</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="callout">
+      The pi-worker is <strong>not modified</strong>. It already had a <code>tools?</code> slot in its input and a <code>toolCalls</code> slot in its output. We just fill the former and read the latter.
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-file">services/pi-worker/src/activities.ts</span>
+        <span class="card-desc">input &amp; output shapes</span>
+      </div>
+      <div class="card-body"><pre><span class="ts-kw">export interface</span> <span class="ts-type">PiInferenceTool</span> {
+  name:         <span class="ts-type">string</span>;
+  description?: <span class="ts-type">string</span>;
+  parameters?:  <span class="ts-type">Record&lt;string, unknown&gt;</span>;   <span class="ts-cmt">// JSON Schema object</span>
+}
+
+<span class="ts-kw">export interface</span> <span class="ts-type">PiInferenceInput</span> {
+  provider:     <span class="ts-type">string</span>;
+  model:        <span class="ts-type">string</span>;
+  systemPrompt: <span class="ts-type">string</span>;
+  messages:     <span class="ts-type">PiInferenceMessage[]</span>;
+  tools?:       <span class="ts-type">PiInferenceTool[]</span>;          <span class="ts-cmt">// ← we fill this from MCP</span>
+}
+
+<span class="ts-kw">export interface</span> <span class="ts-type">PiInferenceOutput</span> {
+  finalText: <span class="ts-type">string</span>;
+  toolCalls: <span class="ts-type">PiToolCall[]</span>;              <span class="ts-cmt">// ← we read this back into MCP</span>
+  usage:     <span class="ts-type">PiTokenUsage</span>;
+}
+
+<span class="ts-kw">export interface</span> <span class="ts-type">PiToolCall</span> {
+  name:      <span class="ts-type">string</span>;
+  arguments: <span class="ts-type">Record&lt;string, unknown&gt;</span>;
+}</pre></div>
+    </div>
+  </div>
+
+  <!-- ── 2. Bridge ── -->
+  <div class="section">
+    <div class="section-header">
+      <h2>2 · The bridge</h2>
+      <div class="section-pill badge badge-mcp">MCP · Python</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="callout">
+      <code>PiMcpBridge</code> is an async context manager that holds one STDIO subprocess open. It exposes two operations: <strong>list the tools</strong> (MCP → pi-worker JSON) and <strong>call a tool</strong> (pi-worker JSON → MCP → result).
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-file">tools/mcp/pi_bridge.py</span>
+        <span class="card-desc">data shapes</span>
+      </div>
+      <div class="card-body"><pre><span class="dec">@dataclass</span>(slots=<span class="kw">True</span>, frozen=<span class="kw">True</span>)
+<span class="kw">class</span> <span class="cls">PiInferenceTool</span>:
+    <span class="cmt"># Mirrors the TypeScript PiInferenceTool exactly.</span>
+    name:        <span class="cls">str</span>
+    description: <span class="cls">str</span>
+    parameters:  <span class="cls">dict</span>[<span class="cls">str</span>, <span class="cls">Any</span>]       <span class="cmt"># JSON Schema from MCP inputSchema</span>
+
+    <span class="kw">def</span> <span class="fn">to_dict</span>(<span class="kw">self</span>) -&gt; <span class="cls">dict</span>:
+        <span class="kw">return</span> {<span class="str">"name"</span>: <span class="kw">self</span>.name, <span class="str">"description"</span>: <span class="kw">self</span>.description,
+                <span class="str">"parameters"</span>: <span class="kw">self</span>.parameters}
+
+
+<span class="dec">@dataclass</span>(slots=<span class="kw">True</span>, frozen=<span class="kw">True</span>)
+<span class="kw">class</span> <span class="cls">PiToolResult</span>:
+    name:          <span class="cls">str</span>
+    arguments:     <span class="cls">dict</span>[<span class="cls">str</span>, <span class="cls">Any</span>]
+    output:        <span class="cls">Any</span>                 <span class="cmt"># whatever the tool returned</span>
+    is_error:      <span class="cls">bool</span>
+    error_message: <span class="cls">str</span> | <span class="kw">None</span> = <span class="kw">None</span></pre></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-file">tools/mcp/pi_bridge.py</span>
+        <span class="card-desc">PiMcpBridge — long-lived subprocess + client</span>
+      </div>
+      <div class="card-body"><pre><span class="kw">class</span> <span class="cls">PiMcpBridge</span>:
+    <span class="cmt">"""Holds one MCP STDIO subprocess open for multiple ops."""</span>
+
+    <span class="dec">@classmethod</span>
+    <span class="kw">def</span> <span class="fn">for_toolset</span>(cls, toolset_name, *, cwd=<span class="kw">None</span>, ...) -&gt; <span class="str">"PiMcpBridge"</span>:
+        command = [python, <span class="str">"manage.py"</span>, <span class="str">"run_tools_mcp"</span>,
+                   <span class="str">"--toolset"</span>, toolset_name, <span class="str">"--transport"</span>, <span class="str">"stdio"</span>]
+        <span class="kw">return</span> cls(command, cwd=cwd, ...)
+
+    <span class="kw">async def</span> <span class="fn">__aenter__</span>(<span class="kw">self</span>):
+        transport = <span class="cls">StdioTransport</span>(command=..., args=..., env=..., cwd=...)
+        <span class="kw">self</span>._client = <span class="kw">await</span> <span class="cls">Client</span>(transport).__aenter__()
+        <span class="kw">return self</span>
+
+    <span class="kw">async def</span> <span class="fn">list_tools</span>(<span class="kw">self</span>) -&gt; <span class="cls">list</span>[<span class="cls">PiInferenceTool</span>]:
+        raw = <span class="kw">await self</span>._client.list_tools()
+        <span class="kw">return</span> [
+            <span class="cls">PiInferenceTool</span>(
+                name=t.name,
+                description=t.description <span class="kw">or</span> <span class="str">""</span>,
+                parameters=t.inputSchema,  <span class="cmt"># already JSON Schema</span>
+            )
+            <span class="kw">for</span> t <span class="kw">in</span> raw
+        ]
+
+    <span class="kw">async def</span> <span class="fn">call_tool</span>(<span class="kw">self</span>, name, arguments) -&gt; <span class="cls">PiToolResult</span>:
+        <span class="kw">try</span>:
+            result = <span class="kw">await self</span>._client.call_tool(name, arguments)
+            <span class="kw">return</span> <span class="cls">PiToolResult</span>(name=name, arguments=arguments,
+                                  output=result.data, is_error=<span class="kw">False</span>)
+        <span class="kw">except</span> <span class="cls">ToolError</span> <span class="kw">as</span> exc:
+            <span class="kw">return</span> <span class="cls">PiToolResult</span>(name=name, arguments=arguments,
+                                  output=<span class="kw">None</span>, is_error=<span class="kw">True</span>,
+                                  error_message=<span class="cls">str</span>(exc))</pre></div>
+    </div>
+  </div>
+
+  <!-- ── 3. Activities ── -->
+  <div class="section">
+    <div class="section-header">
+      <h2>3 · Temporal activities</h2>
+      <div class="section-pill badge badge-py">Python · agents worker</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="callout">
+      Thin wrappers that expose the bridge as Temporal activities. The workflow calls these by name; the agents worker executes them locally, spawning the MCP subprocess each time.
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-file">temporal/mcp_pi_activities.py</span>
+        </div>
+        <div class="card-body"><pre><span class="dec">@activity.defn</span>(name=<span class="str">"agents.mcp.list_pi_tools"</span>)
+<span class="kw">async def</span> <span class="fn">list_pi_tools_activity</span>(
+    toolset_name: <span class="cls">str</span>,
+    cwd: <span class="cls">str</span> | <span class="kw">None</span> = <span class="kw">None</span>,
+    python_bin: <span class="cls">str</span> | <span class="kw">None</span> = <span class="kw">None</span>,
+    manage_py: <span class="cls">str</span> = <span class="str">"manage.py"</span>,
+) -&gt; <span class="cls">list</span>[<span class="cls">dict</span>]:
+    tools = <span class="kw">await</span> <span class="fn">discover_pi_tools</span>(
+        toolset_name, cwd=cwd, ...)
+    <span class="kw">return</span> [t.to_dict() <span class="kw">for</span> t <span class="kw">in</span> tools]</pre></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-file">temporal/mcp_pi_activities.py</span>
+        </div>
+        <div class="card-body"><pre><span class="dec">@activity.defn</span>(name=<span class="str">"agents.mcp.call_pi_tool"</span>)
+<span class="kw">async def</span> <span class="fn">call_pi_tool_activity</span>(
+    toolset_name: <span class="cls">str</span>,
+    tool_name: <span class="cls">str</span>,
+    arguments: <span class="cls">dict</span>,
+    cwd: <span class="cls">str</span> | <span class="kw">None</span> = <span class="kw">None</span>,
+    ...
+) -&gt; <span class="cls">dict</span>:
+    result = <span class="kw">await</span> <span class="fn">invoke_pi_tool</span>(
+        toolset_name, tool_name, arguments, ...)
+    <span class="kw">return</span> result.to_dict()</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Workflow ── -->
+  <div class="section">
+    <div class="section-header">
+      <h2>4 · The workflow loop</h2>
+      <div class="section-pill badge badge-py">Python · Temporal workflow</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="callout">
+      The workflow is the glue. It calls three different activities — two Python (MCP), one TypeScript (LLM) — stitching the outputs together into a conversation until the model has no more tool calls to make.
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-file">examples/feedback_demo/feedback/pi_mcp_workflow.py</span>
+        <span class="card-desc">PiMcpLoopWorkflow.run()</span>
+      </div>
+      <div class="card-body"><pre><span class="dec">@workflow.run</span>
+<span class="kw">async def</span> <span class="fn">run</span>(<span class="kw">self</span>, input: <span class="cls">PiMcpLoopInput</span>) -&gt; <span class="cls">PiMcpLoopOutput</span>:
+
+    <span class="cmt"># ① Discover tools — spawns STDIO MCP server, gets JSON schemas</span>
+    tools = <span class="kw">await</span> workflow.<span class="fn">execute_activity</span>(
+        <span class="str">"agents.mcp.list_pi_tools"</span>,               <span class="cmt"># Python activity</span>
+        args=[input.toolset_name, input.mcp_cwd, ...],
+        start_to_close_timeout=timeout,
+    )
+
+    messages = [{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: input.user_message}]
+
+    <span class="kw">for</span> iteration <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, input.max_iterations + <span class="num">1</span>):
+
+        <span class="cmt"># ② Call the LLM — routes to TypeScript pi-worker</span>
+        pi_output = <span class="kw">await</span> workflow.<span class="fn">execute_activity</span>(
+            pi_inference_stub,                        <span class="cmt"># TypeScript activity</span>
+            {<span class="str">"messages"</span>: messages, <span class="str">"tools"</span>: tools, ...},
+            task_queue=<span class="str">"pi-inference-queue"</span>,          <span class="cmt"># ← routes to TS worker</span>
+            start_to_close_timeout=timeout,
+        )
+
+        calls = pi_output.get(<span class="str">"toolCalls"</span>, [])
+        <span class="kw">if not</span> calls:
+            <span class="kw">return</span> <span class="cls">PiMcpLoopOutput</span>(
+                final_text=pi_output[<span class="str">"finalText"</span>],
+                iterations=iteration, ...)
+
+        <span class="cmt"># ③ Dispatch each tool call through MCP</span>
+        <span class="kw">for</span> call <span class="kw">in</span> calls:
+            result = <span class="kw">await</span> workflow.<span class="fn">execute_activity</span>(
+                <span class="str">"agents.mcp.call_pi_tool"</span>,            <span class="cmt"># Python activity</span>
+                args=[input.toolset_name,
+                      call[<span class="str">"name"</span>], call[<span class="str">"arguments"</span>], ...],
+                start_to_close_timeout=timeout,
+            )
+            <span class="cmt"># ④ Fold result back as next user message → loop</span>
+            messages.append({
+                <span class="str">"role"</span>: <span class="str">"user"</span>,
+                <span class="str">"content"</span>: <span class="str">f"&lt;tool_result&gt;</span>{json.<span class="fn">dumps</span>(result)}<span class="str">&lt;/tool_result&gt;"</span>,
+            })</pre></div>
+    </div>
+  </div>
+
+  <!-- ── 5. Transport map ── -->
+  <div class="section">
+    <div class="section-header">
+      <h2>5 · Protocols at each hop</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left; padding:12px 16px; color:var(--muted); font-weight:600;">Hop</th>
+              <th style="text-align:left; padding:12px 16px; color:var(--muted); font-weight:600;">Protocol</th>
+              <th style="text-align:left; padding:12px 16px; color:var(--muted); font-weight:600;">Between</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:12px 16px;">Workflow → <code>list_pi_tools</code> activity</td>
+              <td style="padding:12px 16px;"><span class="badge badge-tmp">Temporal gRPC</span></td>
+              <td style="padding:12px 16px; color:var(--muted);">Python ↔ Python</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:12px 16px;"><code>list_pi_tools</code> activity → MCP server</td>
+              <td style="padding:12px 16px;"><span class="badge badge-mcp">MCP over STDIO</span></td>
+              <td style="padding:12px 16px; color:var(--muted);">Python ↔ Python subprocess</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:12px 16px;">Workflow → <code>piInference</code></td>
+              <td style="padding:12px 16px;"><span class="badge badge-tmp">Temporal gRPC</span> <small style="color:var(--muted)">(cross-queue)</small></td>
+              <td style="padding:12px 16px; color:var(--muted);">Python workflow → TypeScript worker</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:12px 16px;"><code>piInference</code> → LLM provider</td>
+              <td style="padding:12px 16px;"><span class="badge badge-ts">HTTPS / OpenAI API</span></td>
+              <td style="padding:12px 16px; color:var(--muted);">TypeScript ↔ external</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 16px;">Workflow → <code>call_pi_tool</code> activity</td>
+              <td style="padding:12px 16px;"><span class="badge badge-mcp">MCP over STDIO</span></td>
+              <td style="padding:12px 16px; color:var(--muted);">Python ↔ Python subprocess</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px; border-color: var(--accent2);">
+      The TypeScript pi-worker only ever sees <strong>Temporal RPC</strong>. MCP stays inside the Python process and never crosses the polyglot boundary.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

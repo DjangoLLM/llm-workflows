@@ -65,9 +65,9 @@ Define what your pipeline does. You can place this in a file like `my_app/pipeli
 
 ```python
 from typing import Optional
-from agents.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
-from agents.agent import AgentConfig
-from agents.step_catalog import StepCatalog, StepExecutionType
+from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.core.agent import AgentConfig
+from agents.core.step_catalog import StepCatalog, StepExecutionType
 
 # --- STEP 1: A Standard Python Code Step ---
 class CleanFeedbackStep(PipelineStep):
@@ -141,11 +141,11 @@ Create a file called `my_app/temporal_plugin.py`. This is where we tell Temporal
 ```python
 from datetime import timedelta
 from temporalio import workflow
-from agents.temporal.worker_plugins import TemporalWorkerPlugin
+from agents.core.temporal.worker_plugins import TemporalWorkerPlugin
 
 # Safely import the built-in activities
 with workflow.unsafe.imports_passed_through():
-    from agents.temporal.activities import (
+    from agents.core.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
         mark_pipeline_success_activity,

@@ -14,6 +14,8 @@ from temporalio.client import Client
 
 from agents.models import AgentRun, PipelineRun, PipelineStatus, PipelineStep
 
+from agents.core.tools import default_registry
+
 from .pipelines import ANALYZE_STEP, FeedbackPipeline
 
 WORKFLOW_NAME = "feedback.pipeline.workflow"
@@ -113,6 +115,48 @@ def run_status(request: HttpRequest, run_id: str) -> JsonResponse:
             "is_terminal": run.status in {PipelineStatus.SUCCEEDED, PipelineStatus.FAILED},
         }
     )
+
+
+def tool_playground(request: HttpRequest) -> HttpResponse:
+    tools = []
+    for name in default_registry.names():
+        descriptor = default_registry.get(name)
+        tools.append(
+            {
+                "name": name,
+                "toolset": descriptor.toolset_name,
+                "mcp_safe": descriptor.mcp_safe,
+                "input_fields": list(descriptor.input_model.model_fields.keys()),
+            }
+        )
+    return render(request, "feedback/tool_playground.html", {"tools": tools})
+
+
+def tool_invoke(request: HttpRequest) -> JsonResponse:
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError as exc:
+        return JsonResponse({"error": f"Invalid JSON: {exc}"}, status=400)
+
+    tool_name = body.get("tool")
+    input_data = body.get("input", {})
+
+    if not tool_name:
+        return JsonResponse({"error": "Missing 'tool' field"}, status=400)
+
+    try:
+        result = default_registry.run(tool_name, input_data)
+    except KeyError:
+        return JsonResponse({"error": f"Unknown tool: {tool_name!r}"}, status=404)
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=422)
+
+    return JsonResponse({"tool": tool_name, "input": input_data, "output": result.model_dump()})
 
 
 def _serialize_run(run: PipelineRun) -> dict[str, Any]:

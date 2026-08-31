@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HLD · non-interactive coding-agent contract</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0c10;
+    --surface:  #13131a;
+    --surface2: #181821;
+    --border:   #22222e;
+    --border2:  #2e2e3e;
+    --text:     #d8d8e8;
+    --dim:      #55556a;
+    --new:      #f5c842;
+    --new-bg:   rgba(245,200,66,.08);
+    --green:    #4ade80;
+    --green-bg: rgba(74,222,128,.06);
+    --red:      #f87171;
+    --red-bg:   rgba(248,113,113,.06);
+    --blue:     #60a5fa;
+    --blue-bg:  rgba(96,165,250,.06);
+    --violet:   #c084fc;
+    --violet-bg:rgba(192,132,252,.06);
+    --mono:     'Courier New', 'Lucida Console', monospace;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page { max-width: 1000px; margin: 0 auto; padding: 48px 32px 96px; }
+
+  header {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 18px;
+  }
+  .ticket { color: var(--dim); font-size: 11px; }
+  h1 { font-size: 15px; font-weight: 700; letter-spacing: .04em; color: #fff; flex: 1; }
+  .badge {
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 3px; border: 1px solid var(--border2); color: var(--dim);
+  }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 36px; }
+  .sub b { color: var(--text); font-weight: 700; }
+
+  .label {
+    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 12px;
+  }
+  .lede { color: var(--dim); font-size: 12px; margin: -6px 0 14px; }
+  section { margin-bottom: 46px; }
+
+  /* callout */
+  .callout {
+    border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px;
+    background: var(--surface); margin-bottom: 12px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .callout.accent { border-color: var(--new); background: var(--new-bg); }
+  .callout.ok { border-color: var(--green); background: var(--green-bg); }
+  .callout-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .callout-body { flex: 1; }
+  .callout-title { font-weight: 700; font-size: 12px; color: #fff; margin-bottom: 4px; }
+  .callout-text { color: var(--dim); font-size: 12px; }
+  .callout code { color: var(--text); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+
+  /* diagram */
+  .diagram-wrap { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+  .diagram-card, .detail-card {
+    border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden;
+  }
+  .diagram-card svg { display: block; width: 100%; height: auto; background: #0a0a0e; }
+  .node { cursor: pointer; }
+  .node rect, .node ellipse {
+    transition: stroke .15s, fill .15s; }
+  .node:hover rect, .node:hover ellipse { stroke: var(--new); }
+  .node text { fill: var(--text); font-family: var(--mono); font-size: 11px; pointer-events: none; }
+  .node .sublabel { fill: var(--dim); font-size: 8.5px; }
+  .edge { stroke: var(--border2); stroke-width: 1.2; fill: none; marker-end: url(#arrow); }
+  .edge.dashed { stroke-dasharray: 4 3; }
+  .edge-label { fill: var(--dim); font-size: 8.5px; font-family: var(--mono); }
+  .detail-card { padding: 16px 18px; min-height: 320px; }
+  .detail-card .dt-title { color: var(--new); font-weight: 700; font-size: 12px; margin-bottom: 10px; }
+  .detail-card .dt-role { color: var(--text); font-size: 12px; margin-bottom: 12px; }
+  .detail-card .dt-h { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin: 12px 0 6px; }
+  .detail-card ul { list-style: none; }
+  .detail-card li { font-size: 11.5px; padding: 2px 0 2px 14px; position: relative; color: var(--text); }
+  .detail-card li.does::before { content: '+'; color: var(--green); position: absolute; left: 0; }
+  .detail-card li.not::before { content: '−'; color: var(--red); position: absolute; left: 0; }
+  .detail-card li.not { color: var(--dim); }
+  .detail-card code { color: var(--blue); }
+  .hint { color: var(--dim); font-size: 11px; font-style: italic; }
+
+  /* policy dataclass card */
+  .dataclass-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .dc-header {
+    background: var(--surface); padding: 10px 18px; font-size: 11px; color: var(--dim);
+    border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;
+  }
+  .dc-header span.n { color: #fff; font-weight: 700; }
+  .field-row {
+    display: grid; grid-template-columns: 22px 1.1fr 1.3fr 1fr; gap: 0 16px;
+    padding: 9px 18px; border-bottom: 1px solid var(--border); align-items: center;
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-row.new-field { background: var(--new-bg); border-left: 3px solid var(--new); padding-left: 15px; }
+  .field-num { color: var(--dim); font-size: 11px; text-align: right; }
+  .field-name { color: var(--blue); }
+  .field-name.hl { color: var(--new); font-weight: 700; }
+  .field-type { color: var(--green); font-size: 12px; }
+  .field-default { color: var(--dim); font-size: 12px; }
+  .new-tag {
+    display: inline-block; font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    background: var(--new); color: #000; padding: 1px 5px; border-radius: 2px; font-weight: 700; margin-left: 8px;
+  }
+
+  /* mapping matrix */
+  .matrix { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .matrix th, .matrix td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; font-size: 11.5px; }
+  .matrix thead th { background: var(--surface); color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .matrix tbody th { background: var(--surface2); color: var(--text); font-weight: 700; white-space: nowrap; }
+  .matrix .knob { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .matrix code { color: var(--text); }
+  .matrix .codex code { color: var(--blue); }
+  .matrix .gemini code { color: var(--violet); }
+  .matrix .claude code { color: var(--new); }
+  .matrix tr.claude-row { background: var(--new-bg); }
+  .matrix .muted { color: var(--dim); }
+
+  /* split cards */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .path-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .path-header { padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: .04em; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .path-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .path-card.a .path-header { color: var(--green); background: var(--green-bg); } .path-card.a .dot { background: var(--green); }
+  .path-card.b .path-header { color: var(--violet); background: var(--violet-bg); } .path-card.b .dot { background: var(--violet); }
+  .path-body { padding: 14px 16px; font-size: 12px; }
+  .path-body code { color: var(--text); background: rgba(255,255,255,.05); padding: 1px 4px; border-radius: 3px; }
+  .path-body .row { margin-bottom: 7px; }
+  .path-body .k { color: var(--dim); }
+
+  /* files */
+  .files-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .file-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .file-name { padding: 9px 14px; font-size: 11px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); font-weight: 700; }
+  .file-name .path-prefix { color: var(--dim); font-weight: 400; }
+  .file-name .tag { float: right; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; }
+  .file-name .tag.new { background: var(--new); color: #000; }
+  .file-name .tag.mod { background: var(--blue); color: #000; }
+  .diff-line { display: block; padding: 3px 14px; font-size: 11px; }
+  .diff-line.add { color: var(--green); background: rgba(74,222,128,.04); }
+  .diff-line.ctx { color: var(--dim); }
+  .file-card .file-body { padding: 8px 0; }
+
+  .oos-list { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .oos-item { padding: 9px 18px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .oos-item:last-child { border-bottom: none; }
+  .oos-item::before { content: '—'; color: var(--border2); }
+  .oos-item code { color: var(--text); }
+
+  .q-card { border: 1px solid var(--border2); border-left: 3px solid var(--new); border-radius: 6px; padding: 12px 16px; margin-bottom: 10px; background: var(--surface); }
+  .q-card .q { color: #fff; font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+  .q-card .a { color: var(--dim); font-size: 12px; }
+  .q-card .a b { color: var(--green); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Non-interactive coding-agent contract</h1>
+    <span class="ticket">#596 · chat–c0910f58</span>
+    <span class="badge">HLD</span>
+  </header>
+  <div class="sub">
+    When freedom-chat drives a coding agent through freedom-agents
+    <code>core/cli_wrappers.py</code>, the agent must run <b>non-interactively</b>:
+    no approval/permission dialogues, and a <b>plain/structured text stream</b> instead of a rich TUI.
+    Two independent knobs per CLI — <b>approval</b> and <b>output</b> — expressed once as a
+    configurable policy, not hard-coded per call site.
+  </div>
+
+  <!-- problem -->
+  <section>
+    <div class="label">The gap today</div>
+    <div class="callout">
+      <span class="callout-icon">→</span>
+      <div class="callout-body">
+        <div class="callout-title">The knobs exist, but only as scattered per-CLI kwargs — and Claude has no wrapper.</div>
+        <div class="callout-text">
+          Codex takes <code>sandbox=</code> + <code>full_auto=</code>; Gemini takes <code>approval_mode=</code>;
+          each <code>build_command</code> invents its own argument names. A caller (freedom-chat) wanting
+          "run non-interactively, text stream, no writes" must know each CLI's dialect.
+          And there is <b>no <code>ClaudeCLIWrapper</code></b> at all.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- the policy object -->
+  <section>
+    <div class="label">Core abstraction — one policy, translated per CLI</div>
+    <div class="lede">A frozen dataclass that captures the two knobs (+ escalation) once. Each wrapper's <code>build_command</code> reads it and emits its own flags.</div>
+    <div class="dataclass-card">
+      <div class="dc-header"><span class="n">NonInteractivePolicy</span><span>core/cli_wrappers.py · new</span></div>
+      <div class="field-row new-field">
+        <span class="field-num">+</span>
+        <span class="field-name hl">auto_approve<span class="new-tag">knob 1</span></span>
+        <span class="field-type">bool</span>
+        <span class="field-default">= True</span>
+      </div>
+      <div class="field-row new-field">
+        <span class="field-num">+</span>
+        <span class="field-name hl">allow_writes<span class="new-tag">knob 1b</span></span>
+        <span class="field-type">bool</span>
+        <span class="field-default">= False</span>
+      </div>
+      <div class="field-row new-field">
+        <span class="field-num">+</span>
+        <span class="field-name hl">output_format<span class="new-tag">knob 2</span></span>
+        <span class="field-type">OutputFormat</span>
+        <span class="field-default">= STREAM_JSON</span>
+      </div>
+      <div class="field-row new-field">
+        <span class="field-num">+</span>
+        <span class="field-name hl">interactive<span class="new-tag">escalation</span></span>
+        <span class="field-type">bool</span>
+        <span class="field-default">= False</span>
+      </div>
+    </div>
+    <div class="callout accent">
+      <span class="callout-icon">★</span>
+      <div class="callout-body">
+        <div class="callout-title">Safe by default, escalation is opt-in.</div>
+        <div class="callout-text">
+          Default policy = auto-approve dialogues <b>but read-only</b> (<code>allow_writes=False</code>) and stream-json output.
+          Writes/exec require an explicit <code>allow_writes=True</code>. Setting <code>interactive=True</code> drops the
+          non-interactive flags entirely so a human can drive the real TUI — the documented escalation path.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- architecture diagram -->
+  <section>
+    <div class="label">Where it sits · click a node</div>
+    <div class="lede">Dashed edge = downstream seam owned by freedom-chat (out of scope here). The wrapper layer's job ends at the unified <code>CLIEvent</code> stream.</div>
+    <div class="diagram-wrap">
+      <div class="diagram-card">
+        <svg viewBox="0 0 440 360" role="img" aria-label="architecture diagram">
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#2e2e3e"></path>
+            </marker>
+          </defs>
+
+          <!-- freedom-chat -->
+          <g class="node" data-key="chat">
+            <rect x="150" y="14" width="140" height="40" rx="5" fill="#13131a" stroke="#2e2e3e"></rect>
+            <text x="220" y="32" text-anchor="middle">freedom-chat</text>
+            <text x="220" y="45" text-anchor="middle" class="sublabel">builds a policy</text>
+          </g>
+          <path class="edge" d="M220,54 L220,82"></path>
+          <text class="edge-label" x="226" y="72">NonInteractivePolicy</text>
+
+          <!-- policy -->
+          <g class="node" data-key="policy">
+            <rect x="140" y="82" width="160" height="40" rx="5" fill="#13131a" stroke="#f5c842"></rect>
+            <text x="220" y="100" text-anchor="middle">NonInteractivePolicy</text>
+            <text x="220" y="113" text-anchor="middle" class="sublabel">2 knobs + escalation</text>
+          </g>
+          <path class="edge" d="M220,122 L220,150"></path>
+
+          <!-- base wrapper -->
+          <g class="node" data-key="base">
+            <rect x="120" y="150" width="200" height="44" rx="5" fill="#13131a" stroke="#2e2e3e"></rect>
+            <text x="220" y="169" text-anchor="middle">BaseCLIWrapper.execute()</text>
+            <text x="220" y="183" text-anchor="middle" class="sublabel">build_command → subprocess → parse</text>
+          </g>
+
+          <!-- three wrappers -->
+          <path class="edge" d="M180,194 L110,232"></path>
+          <path class="edge" d="M220,194 L220,232"></path>
+          <path class="edge" d="M260,194 L330,232"></path>
+
+          <g class="node" data-key="codex">
+            <rect x="40" y="232" width="120" height="40" rx="5" fill="#13131a" stroke="#60a5fa"></rect>
+            <text x="100" y="250" text-anchor="middle">CodexCLIWrapper</text>
+            <text x="100" y="263" text-anchor="middle" class="sublabel">codex exec</text>
+          </g>
+          <g class="node" data-key="gemini">
+            <rect x="170" y="232" width="100" height="40" rx="5" fill="#13131a" stroke="#c084fc"></rect>
+            <text x="220" y="250" text-anchor="middle">Gemini</text>
+            <text x="220" y="263" text-anchor="middle" class="sublabel">gemini</text>
+          </g>
+          <g class="node" data-key="claude">
+            <rect x="280" y="232" width="120" height="40" rx="5" fill="#1a1708" stroke="#f5c842"></rect>
+            <text x="340" y="250" text-anchor="middle" style="fill:#f5c842;font-weight:700;">ClaudeCLIWrapper</text>
+            <text x="340" y="263" text-anchor="middle" class="sublabel">claude -p · NEW</text>
+          </g>
+
+          <!-- events back -->
+          <path class="edge" d="M100,272 L100,300 L210,300"></path>
+          <path class="edge" d="M220,272 L220,300"></path>
+          <path class="edge" d="M340,272 L340,300 L230,300"></path>
+          <g class="node" data-key="event">
+            <rect x="150" y="300" width="140" height="40" rx="5" fill="#13131a" stroke="#4ade80"></rect>
+            <text x="220" y="318" text-anchor="middle" style="fill:#4ade80;">CLIEvent stream</text>
+            <text x="220" y="331" text-anchor="middle" class="sublabel">unified, normalized</text>
+          </g>
+          <!-- dashed seam back to chat render -->
+          <path class="edge dashed" d="M290,320 L410,320 L410,34 L290,34"></path>
+          <text class="edge-label" x="360" y="200" transform="rotate(90 360 200)">render as chat thread</text>
+        </svg>
+      </div>
+      <div class="detail-card" id="detail">
+        <div class="dt-title">Click a node</div>
+        <div class="dt-role">Select a box in the diagram to see what it does — and explicitly does not — own.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- mapping matrix -->
+  <section>
+    <div class="label">Policy → CLI flags · the translation table</div>
+    <div class="lede">The whole contract in one matrix. Each wrapper's <code>build_command</code> implements exactly its column.</div>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Policy</th>
+          <th class="codex">Codex · <code>codex exec</code></th>
+          <th class="gemini">Gemini · <code>gemini</code></th>
+          <th class="claude">Claude · <code>claude</code> (NEW)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th><span class="knob">Knob 1</span><br>auto_approve = True</th>
+          <td class="codex"><code>--full-auto</code></td>
+          <td class="gemini"><code>--approval-mode yolo</code></td>
+          <td class="claude"><code>--permission-mode bypassPermissions</code></td>
+        </tr>
+        <tr class="claude-row">
+          <th><span class="knob">Knob 1b</span><br>allow_writes = True</th>
+          <td class="codex"><code>--sandbox danger-full-access</code></td>
+          <td class="gemini"><span class="muted">covered by yolo</span></td>
+          <td class="claude"><code>bypassPermissions</code> covers it; <code>--add-dir</code> for cwd</td>
+        </tr>
+        <tr>
+          <th>allow_writes = False <span class="knob">(default)</span></th>
+          <td class="codex"><code>--sandbox read-only</code></td>
+          <td class="gemini"><code>--approval-mode default</code> + read-only tools</td>
+          <td class="claude"><code>--permission-mode plan</code> / restricted tools</td>
+        </tr>
+        <tr>
+          <th><span class="knob">Knob 2</span><br>output = STREAM_JSON</th>
+          <td class="codex"><code>--json</code></td>
+          <td class="gemini"><code>--output-format stream-json</code></td>
+          <td class="claude"><code>-p --output-format stream-json --verbose</code></td>
+        </tr>
+        <tr>
+          <th>interactive = True <span class="knob">(escalate)</span></th>
+          <td class="codex">drop <code>exec</code>/<code>--json</code> → TUI</td>
+          <td class="gemini">drop <code>--output-format</code> → TUI</td>
+          <td class="claude">drop <code>-p</code> → interactive REPL</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:12px;">
+      <span class="callout-icon">⚠</span>
+      <div class="callout-body">
+        <div class="callout-text">
+          Claude's <code>stream-json</code> requires <code>--verbose</code> when paired with <code>-p</code> — the wrapper adds it automatically.
+          <code>--dangerously-skip-permissions</code> is the blunt alias for <code>bypassPermissions</code>; we standardize on the explicit <code>--permission-mode</code> form.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ClaudeCLIWrapper detail -->
+  <section>
+    <div class="label">New · ClaudeCLIWrapper</div>
+    <div class="split">
+      <div class="path-card a">
+        <div class="path-header"><span class="dot"></span>build_command</div>
+        <div class="path-body">
+          <div class="row"><span class="k">base</span> → <code>["claude", "-p", prompt]</code></div>
+          <div class="row"><span class="k">stream</span> → <code>--output-format stream-json --verbose</code></div>
+          <div class="row"><span class="k">approve</span> → <code>--permission-mode &lt;mode&gt;</code></div>
+          <div class="row"><span class="k">model</span> → <code>--model &lt;id&gt;</code> (opt)</div>
+          <div class="row"><span class="k">resume</span> → <code>--resume &lt;session_id&gt;</code></div>
+        </div>
+      </div>
+      <div class="path-card b">
+        <div class="path-header"><span class="dot"></span>parse_event · stream-json types</div>
+        <div class="path-body">
+          <div class="row"><code>system</code>/<code>init</code> → captures <code>session_id</code></div>
+          <div class="row"><code>assistant</code> → <code>content</code> (text deltas)</div>
+          <div class="row"><code>user</code> → <code>tool_result</code></div>
+          <div class="row"><code>result</code> → <code>done</code> + <code>usage</code></div>
+          <div class="row"><span class="k">_extract_usage</span> ← last <code>result</code> event</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:12px;">
+      <span class="callout-icon">→</span>
+      <div class="callout-body">
+        <div class="callout-text">
+          Inherits all of <code>BaseCLIWrapper.execute()</code> — the streaming, stderr capture, timeout/kill, and session
+          tracking already work. <code>session.started</code> handling already keys on <code>session_id</code>, so resume is
+          near-free. Adds a <code>resume()</code> method mirroring Codex's for <code>WorkflowSession</code> multi-step support.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- escalation -->
+  <section>
+    <div class="label">Escalation path — the contract stays optional</div>
+    <div class="callout ok">
+      <span class="callout-icon">✓</span>
+      <div class="callout-body">
+        <div class="callout-title">interactive=True is a first-class mode, not a removed feature.</div>
+        <div class="callout-text">
+          When a human needs to take the wheel (a destructive op the policy refuses, a debugging session),
+          a policy with <code>interactive=True</code> tells every wrapper to omit its non-interactive flags and let the
+          native TUI run. freedom-chat decides when to escalate; freedom-agents only honors the flag.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- files -->
+  <section>
+    <div class="label">Files changed</div>
+    <div class="files-grid">
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">core/</span>cli_wrappers.py<span class="tag mod">mod</span></div>
+        <div class="file-body">
+          <span class="diff-line add">+ @dataclass NonInteractivePolicy</span>
+          <span class="diff-line add">+ class ClaudeCLIWrapper(BaseCLIWrapper)</span>
+          <span class="diff-line add">+ &nbsp;&nbsp;build_command / parse_event / _extract_usage / resume</span>
+          <span class="diff-line ctx">~ Codex + Gemini build_command accept a policy (kwargs kept)</span>
+        </div>
+      </div>
+      <div class="file-card">
+        <div class="file-name"><span class="path-prefix">tests/unit/</span>test_cli_wrappers.py<span class="tag mod">mod</span></div>
+        <div class="file-body">
+          <span class="diff-line add">+ test_claude_build_command_*</span>
+          <span class="diff-line add">+ test_claude_parse_event_and_usage</span>
+          <span class="diff-line add">+ test_policy_maps_to_flags (codex/gemini/claude)</span>
+          <span class="diff-line add">+ test_interactive_escalation_drops_flags</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- open decisions -->
+  <section>
+    <div class="label">Open decisions — recommended defaults baked in</div>
+    <div class="q-card">
+      <div class="q">1 · Default permission level per agent?</div>
+      <div class="a"><b>Recommend:</b> auto-approve dialogues ON, writes OFF (read-only) by default. Writes/exec is one explicit flag away. Matches "escalation is opt-in."</div>
+    </div>
+    <div class="q-card">
+      <div class="q">2 · Does this ticket own the chat-thread rendering of streamed events?</div>
+      <div class="a"><b>Recommend:</b> No — freedom-agents stops at the normalized <code>CLIEvent</code> stream. Rendering is a freedom-chat seam (dashed edge), tracked separately under CODIN-584.</div>
+    </div>
+    <div class="q-card">
+      <div class="q">3 · Read-only Claude default — <code>plan</code> mode vs. restricted <code>--allowedTools</code>?</div>
+      <div class="a"><b>Recommend:</b> <code>--permission-mode plan</code> as the read-only default (no edits/exec), since it is purpose-built for non-mutating runs.</div>
+    </div>
+  </section>
+
+  <!-- acceptance -->
+  <section>
+    <div class="label">Acceptance signal</div>
+    <div class="callout ok">
+      <span class="callout-icon">✓</span>
+      <div class="callout-body">
+        <div class="callout-title">Done when…</div>
+        <div class="callout-text">
+          A single <code>NonInteractivePolicy</code> drives Codex, Gemini, and the new Claude wrapper to run
+          non-interactively with a text/stream-json output; <code>interactive=True</code> reverts each to its TUI;
+          Claude stream-json events normalize into the existing <code>CLIEvent</code> contract; unit tests green.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const DETAIL = {
+    chat: {
+      title: 'freedom-chat (caller)',
+      role: 'Decides the run posture and constructs a NonInteractivePolicy, then calls a wrapper.',
+      does: ['Choose agent (Codex/Gemini/Claude)', 'Build the policy (approve? writes? interactive?)', 'Consume the CLIEvent stream'],
+      not: ['Know any CLI-specific flag', 'Parse raw CLI output'],
+    },
+    policy: {
+      title: 'NonInteractivePolicy',
+      role: 'The single source of truth for the two knobs + escalation. CLI-agnostic.',
+      does: ['Hold auto_approve / allow_writes / output_format / interactive', 'Be reused across all wrappers'],
+      not: ['Contain any CLI flag string', 'Make the approve-vs-escalate decision itself'],
+    },
+    base: {
+      title: 'BaseCLIWrapper.execute()',
+      role: 'Already-built engine: subprocess, streaming, stderr, timeout, session tracking.',
+      does: ['Run build_command() output', 'Stream + parse_event() each line', 'Capture usage / session_id'],
+      not: ['Know about the policy directly — subclasses translate it in build_command'],
+    },
+    codex: {
+      title: 'CodexCLIWrapper',
+      role: 'Translates policy → codex exec flags. Exists today; gains policy awareness.',
+      does: ['--full-auto / --sandbox from policy', '--json for stream'],
+      not: ['Change its event parsing', 'Break existing kwargs (kept as overrides)'],
+    },
+    gemini: {
+      title: 'GeminiCLIWrapper',
+      role: 'Translates policy → gemini flags. Exists today; gains policy awareness.',
+      does: ['--approval-mode yolo/default', '--output-format stream-json'],
+      not: ['Change its NDJSON normalization'],
+    },
+    claude: {
+      title: 'ClaudeCLIWrapper · NEW',
+      role: 'The missing piece. Wraps the Claude Code CLI in print/stream mode.',
+      does: ['claude -p --output-format stream-json --verbose', '--permission-mode from policy', 'Normalize system/assistant/result events', 'resume() via --resume'],
+      not: ['Re-implement streaming (inherits Base)', 'Render the thread'],
+    },
+    event: {
+      title: 'CLIEvent stream',
+      role: 'The unified, normalized event contract — identical shape for all three CLIs.',
+      does: ['type + data + raw + timestamp', 'Be the hand-off boundary to freedom-chat'],
+      not: ['Carry CLI-specific raw schemas downstream (normalized first)'],
+    },
+  };
+  const panel = document.getElementById('detail');
+  document.querySelectorAll('.node').forEach(n => {
+    n.addEventListener('click', () => {
+      const d = DETAIL[n.dataset.key];
+      if (!d) return;
+      panel.innerHTML =
+        '<div class="dt-title">' + d.title + '</div>' +
+        '<div class="dt-role">' + d.role + '</div>' +
+        '<div class="dt-h">Does</div><ul>' + d.does.map(x => '<li class="does">' + x + '</li>').join('') + '</ul>' +
+        '<div class="dt-h">Does not</div><ul>' + d.not.map(x => '<li class="not">' + x + '</li>').join('') + '</ul>';
+    });
+  });
+</script>
+</body>
+</html>

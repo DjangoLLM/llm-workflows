@@ -10,8 +10,8 @@ from unittest import mock
 
 import pytest
 
-from agents.agent import Agent, AgentConfig
-from agents.agent import _json_safe_value
+from agents.core.agent import Agent, AgentConfig
+from agents.core.agent import _json_safe_value
 
 
 class DemoEnum(enum.Enum):
@@ -24,9 +24,9 @@ class DemoData:
 
 
 def _patch_openai_model_construction(monkeypatch) -> None:
-    monkeypatch.setattr("agents.agent.OpenAIResponsesModel", lambda model: f"model:{model}")
+    monkeypatch.setattr("agents.core.agent.OpenAIResponsesModel", lambda model: f"model:{model}")
     monkeypatch.setattr(
-        "agents.agent.OpenAIResponsesModelSettings",
+        "agents.core.agent.OpenAIResponsesModelSettings",
         lambda **kwargs: {"settings": kwargs},
     )
 
@@ -40,7 +40,7 @@ def test_agent_requires_config_or_default(settings) -> None:
 
 def test_agent_uses_explicit_config_with_string_model(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.agent.PydanticAgent") as pydantic_agent:
+    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
         Agent(config=AgentConfig(instructions="test", model="gpt-5-mini"))
 
     assert pydantic_agent.call_count == 1
@@ -48,7 +48,7 @@ def test_agent_uses_explicit_config_with_string_model(monkeypatch) -> None:
 
 def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.agent.PydanticAgent") as pydantic_agent:
+    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
         Agent(instructions="from kwargs", model="gpt-5-mini")
 
     assert pydantic_agent.call_count == 1
@@ -56,7 +56,7 @@ def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
 
 def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.agent.PydanticAgent"):
+    with mock.patch("agents.core.agent.PydanticAgent"):
         agent = Agent(config=AgentConfig(instructions="x"))
 
     fake = mock.Mock()
@@ -71,7 +71,7 @@ def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
 
 def test_agent_run_async_serializes_payload_json(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.agent.PydanticAgent"):
+    with mock.patch("agents.core.agent.PydanticAgent"):
         agent = Agent(config=AgentConfig(instructions="x"))
 
     class FakeAsync:
@@ -84,6 +84,283 @@ def test_agent_run_async_serializes_payload_json(monkeypatch) -> None:
     result = asyncio.run(agent.run({"b": 2}))
 
     assert result.output == {"ok": True}
+
+
+def test_agent_config_default_execution_backend() -> None:
+    config = AgentConfig(instructions="test")
+    assert config.execution_backend == "pydantic_ai"
+
+
+def test_agent_config_pi_worker_backend_valid() -> None:
+    config = AgentConfig(instructions="test", execution_backend="pi_worker")
+    assert config.execution_backend == "pi_worker"
+
+
+def test_agent_config_invalid_backend_raises() -> None:
+    with pytest.raises(ValueError, match="execution_backend"):
+        AgentConfig(instructions="test", execution_backend="invalid")
+
+
+def test_agent_pi_worker_constructs_with_pi_worker_model(monkeypatch) -> None:
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    captured: dict[str, object] = {}
+
+    def _fake_pydantic_agent(model=None, **kwargs):
+        captured["model"] = model
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(model=model)
+
+    monkeypatch.setattr("agents.core.agent.PydanticAgent", _fake_pydantic_agent)
+
+    agent = Agent(
+        config=AgentConfig(
+            instructions="test",
+            execution_backend="pi_worker",
+            model="gpt-4o-mini",
+        )
+    )
+
+    assert isinstance(captured["model"], PiWorkerModel)
+    assert captured["model"].model_name == "gpt-4o-mini"
+    assert captured["model"].provider_name == "openai"
+    assert agent.config.execution_backend == "pi_worker"
+
+
+def test_agent_pi_worker_passes_registry_toolset(monkeypatch) -> None:
+    from agents.core.tools.contracts import Tool
+    from pydantic import BaseModel
+
+    captured: dict[str, object] = {}
+
+    def _fake_pydantic_agent(model=None, **kwargs):
+        captured["tools"] = kwargs.get("tools", [])
+        return SimpleNamespace(model=model)
+
+    monkeypatch.setattr("agents.core.agent.PydanticAgent", _fake_pydantic_agent)
+
+    class _Input(BaseModel):
+        text: str
+
+    class _Output(BaseModel):
+        echoed: str
+
+    def _bound(payload: _Input) -> _Output:
+        return _Output(echoed=payload.text)
+
+    fake_tool = Tool(
+        name="_pi_worker_echo",
+        input_model=_Input,
+        output_model=_Output,
+        mcp_safe=True,
+        toolset_name="_pi_worker_set",
+        bound_method=_bound,
+    )
+
+    def _resolve(name):
+        assert name == "_pi_worker_set"
+        return [fake_tool]
+
+    monkeypatch.setattr(
+        "agents.core.tools.default_registry.resolve_toolset",
+        _resolve,
+    )
+
+    Agent(
+        config=AgentConfig(
+            instructions="test",
+            execution_backend="pi_worker",
+            toolsets=["_pi_worker_set"],
+        )
+    )
+
+    tool_names = [getattr(t, "__name__", None) for t in captured["tools"]]
+    assert "_pi_worker_echo" in tool_names
+
+
+def test_pi_worker_model_request_translates_text_response() -> None:
+    from pydantic_ai.messages import ModelRequest, TextPart, UserPromptPart
+    from pydantic_ai.models import ModelRequestParameters
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    captured: dict[str, object] = {}
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured["payload"] = payload
+            captured["task_queue"] = task_queue
+            return {
+                "finalText": "ok",
+                "toolCalls": [],
+                "usage": {"inputTokens": 3, "outputTokens": 5, "totalTokens": 8},
+            }
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+        task_queue="agents-test",
+    )
+
+    response = asyncio.run(
+        model.request(
+            messages=[ModelRequest(parts=[UserPromptPart(content="hi")])],
+            model_settings=None,
+            model_request_parameters=ModelRequestParameters(),
+        )
+    )
+
+    assert len(response.parts) == 1
+    assert isinstance(response.parts[0], TextPart)
+    assert response.parts[0].content == "ok"
+    assert response.usage.input_tokens == 3
+    assert response.usage.output_tokens == 5
+    assert captured["task_queue"] == "agents-test"
+    assert captured["payload"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_pi_worker_model_request_translates_tool_call() -> None:
+    from pydantic_ai.messages import ModelRequest, ToolCallPart, UserPromptPart
+    from pydantic_ai.models import ModelRequestParameters
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            return {
+                "finalText": "",
+                "toolCalls": [{"name": "echo", "arguments": {"text": "x"}}],
+                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+            }
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+        task_queue="agents-test",
+    )
+
+    response = asyncio.run(
+        model.request(
+            messages=[ModelRequest(parts=[UserPromptPart(content="hi")])],
+            model_settings=None,
+            model_request_parameters=ModelRequestParameters(),
+        )
+    )
+
+    tool_parts = [p for p in response.parts if isinstance(p, ToolCallPart)]
+    assert len(tool_parts) == 1
+    assert tool_parts[0].tool_name == "echo"
+    assert tool_parts[0].args_as_dict() == {"text": "x"}
+
+
+def test_pi_worker_model_request_forwards_function_tool_schemas() -> None:
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+    from pydantic_ai.models import ModelRequestParameters
+    from pydantic_ai.tools import ToolDefinition
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    captured: dict[str, object] = {}
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured["payload"] = payload
+            return {"finalText": "", "toolCalls": [], "usage": {}}
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+        task_queue="agents-test",
+    )
+
+    params = ModelRequestParameters(
+        function_tools=[
+            ToolDefinition(
+                name="echo",
+                description="Echoes input.",
+                parameters_json_schema={"type": "object", "properties": {"text": {"type": "string"}}},
+            )
+        ]
+    )
+
+    asyncio.run(
+        model.request(
+            messages=[ModelRequest(parts=[UserPromptPart(content="hi")])],
+            model_settings=None,
+            model_request_parameters=params,
+        )
+    )
+
+    payload = captured["payload"]
+    assert payload["tools"] == [
+        {
+            "name": "echo",
+            "description": "Echoes input.",
+            "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}},
+        }
+    ]
+
+
+def test_pi_worker_model_request_forwards_output_object_for_native_mode() -> None:
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+    from pydantic_ai.models import ModelRequestParameters
+    from pydantic_ai.output import OutputObjectDefinition
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    captured: dict[str, object] = {}
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured["payload"] = payload
+            return {"finalText": "{}", "toolCalls": [], "usage": {}}
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+        task_queue="agents-test",
+    )
+
+    params = ModelRequestParameters(
+        output_mode="native",
+        allow_text_output=False,
+        output_object=OutputObjectDefinition(
+            name="EchoSummary",
+            description="Summary of an echo.",
+            json_schema={"type": "object", "properties": {"summary": {"type": "string"}}},
+        ),
+    )
+
+    asyncio.run(
+        model.request(
+            messages=[ModelRequest(parts=[UserPromptPart(content="hi")])],
+            model_settings=None,
+            model_request_parameters=params,
+        )
+    )
+
+    payload = captured["payload"]
+    assert payload["outputObject"]["name"] == "EchoSummary"
+    assert payload["outputObject"]["jsonSchema"] == {
+        "type": "object",
+        "properties": {"summary": {"type": "string"}},
+    }
 
 
 def test_json_safe_value_normalizes_nested_values() -> None:

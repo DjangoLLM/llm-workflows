@@ -5,10 +5,10 @@ from dataclasses import dataclass
 import pytest
 
 from agents import AgentRunStatus, run_agent
-from agents.agent import ManagedAgent
+from agents.core.agent import ManagedAgent
 from agents.handlers import agent_run_completed
 from agents.models import AgentRun
-from agents.tests.support.stubs import DataclassOutput, FakeAgentFailure, FakeAgentSuccess
+from tests.support.stubs import DataclassOutput, FakeAgentFailure, FakeAgentSuccess
 
 
 class DumpableOutput:

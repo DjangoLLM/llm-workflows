@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from agents.agent import AgentConfig
-from agents.pipeline_structure import Pipeline, PipelineStep
+from agents.core.agent import AgentConfig
+from agents.core.pipeline_structure import Pipeline, PipelineStep
 
 
 @dataclass

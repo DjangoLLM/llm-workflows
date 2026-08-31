@@ -5,12 +5,14 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from agents.agent import AgentConfig
-from agents.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
-from agents.step_catalog import StepCatalog, StepExecutionType
+from agents.core.agent import AgentConfig
+from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.core.step_catalog import StepCatalog, StepExecutionType
+from agents.core.tools import default_registry
 
 PIPELINE_NAME = "feedback.pipeline"
 CLEAN_STEP = "clean_text"
+ECHO_STEP = "echo_tool"
 ANALYZE_STEP = "analyze"
 
 
@@ -24,6 +26,15 @@ class CleanFeedbackStep(PipelineStep):
             "cleaned_text": cleaned_text,
             "original_text": raw_text,
         }
+
+
+class EchoToolStep(PipelineStep):
+    """Invoke the echo tool from default_registry to demonstrate the tool call path."""
+
+    def execute(self, payload: dict) -> dict:
+        text = payload.get("cleaned_text", payload.get("text", ""))
+        result = default_registry.run("echo", {"text": text})
+        return {**payload, "tool_result": result.model_dump()}
 
 
 class AnalyzeFeedbackStep(PipelineStep):
@@ -47,6 +58,7 @@ class FeedbackPipeline(Pipeline):
     name = PIPELINE_NAME
     steps = {
         CLEAN_STEP: CleanFeedbackStep,
+        ECHO_STEP: EchoToolStep,
         ANALYZE_STEP: AnalyzeFeedbackStep,
     }
 
@@ -64,6 +76,14 @@ def register_feedback_pipeline() -> None:
             key=CLEAN_STEP,
             pipeline_name=PIPELINE_NAME,
             step_class=CleanFeedbackStep,
+            execution_type=StepExecutionType.CODE,
+        )
+
+    if ECHO_STEP not in existing_keys:
+        StepCatalog.register_step(
+            key=ECHO_STEP,
+            pipeline_name=PIPELINE_NAME,
+            step_class=EchoToolStep,
             execution_type=StepExecutionType.CODE,
         )
 

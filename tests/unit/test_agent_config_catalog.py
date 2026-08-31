@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from agents.agent import AgentConfig
-from agents.agent_config_catalog import AgentConfigCatalog
+from agents.core.agent import AgentConfig
+from agents.core.agent_config_catalog import AgentConfigCatalog
 
 
 def test_register_and_resolve_agent_config() -> None:

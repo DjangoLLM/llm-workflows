@@ -25,8 +25,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-AGENTS_DIR="$REPO_ROOT/agents"
+AGENTS_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 COMPOSE_FILE="$AGENTS_DIR/tests/docker-compose.test.yml"
 ARTIFACTS_DIR="$AGENTS_DIR/tests/artifacts"
 
@@ -60,7 +60,7 @@ export POSTGRES_DB
 export POSTGRES_PORT
 export POSTGRES_DATA_DIR
 
-export PYTHONPATH="${PYTHONPATH:-$REPO_ROOT}"
+export PYTHONPATH="${PYTHONPATH:-$AGENTS_DIR}"
 
 printf "Starting ephemeral Postgres test container on port %s\n" "$POSTGRES_PORT"
 docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT" up -d --wait
@@ -73,6 +73,7 @@ export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:
 
 PYTEST_CMD=(
   uv run
+  --with .
   --with pytest
   --with pytest-django
   --with pytest-cov
@@ -99,7 +100,7 @@ cd "$AGENTS_DIR"
 "${PYTEST_CMD[@]}"
 
 uv run python tests/verify_coverage.py \
-  agents/tests/artifacts/coverage.json \
+  tests/artifacts/coverage.json \
   --line 90 \
   --branch 80
 

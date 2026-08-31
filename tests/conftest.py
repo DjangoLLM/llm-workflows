@@ -11,12 +11,12 @@ import pytest
 from django.conf import settings
 from django.db import connection
 
-import agents.agent_config_registrations as agent_config_registrations
-import agents.step_registrations as step_registrations
-from agents.agent_config_catalog import AgentConfigCatalog
-from agents.pipeline_structure import PipelineRegistry
-from agents.step_catalog import StepCatalog
-from agents.temporal import activities as temporal_activities
+import agents.core.agent_config_registrations as agent_config_registrations
+import agents.core.step_registrations as step_registrations
+from agents.core.agent_config_catalog import AgentConfigCatalog
+from agents.core.pipeline_structure import PipelineRegistry
+from agents.core.step_catalog import StepCatalog
+from agents.core.temporal import activities as temporal_activities
 
 
 class InlineThread:
@@ -84,7 +84,7 @@ def reset_catalog_singletons() -> None:
 
 @pytest.fixture
 def inline_thread(monkeypatch):
-    monkeypatch.setattr("agents.agent.threading.Thread", InlineThread)
+    monkeypatch.setattr("agents.core.agent.threading.Thread", InlineThread)
     return InlineThread
 
 

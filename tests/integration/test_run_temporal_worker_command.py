@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from agents.management.commands.run_temporal_worker import Command
-from agents.temporal.worker_plugins import TemporalWorkerComposition
+from agents.core.temporal.worker_plugins import TemporalWorkerComposition
 
 
 @pytest.mark.django_db
@@ -16,7 +16,7 @@ def test_run_worker_builds_and_runs_worker(settings, monkeypatch) -> None:
     settings.TEMPORAL_TASK_QUEUE = "queue-x"
 
     composition = TemporalWorkerComposition(
-        plugin_modules=["agents.temporal.plugins.core"],
+        plugin_modules=["agents.core.temporal.plugins.core"],
         plugin_slugs=["agents"],
         workflow_names=["wf"],
         workflows=[object],
