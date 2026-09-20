@@ -54,6 +54,40 @@ def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
     assert pydantic_agent.call_count == 1
 
 
+def test_agent_builds_codex_backend_from_kwargs() -> None:
+    runner = mock.Mock()
+    with mock.patch(
+        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+    ) as from_config:
+        agent = Agent(
+            instructions="typed",
+            execution_backend="codex_cli",
+            result_type=DemoData,
+        )
+
+    assert agent._runner is runner
+    assert agent._pydantic_agent is None
+    assert from_config.call_args.args[0].execution_backend == "codex_cli"
+
+
+def test_agent_uses_configured_codex_default(settings) -> None:
+    configured = AgentConfig(
+        instructions="typed",
+        execution_backend="codex_cli",
+        result_type=DemoData,
+    )
+    settings.DEFAULT_AGENT_CONFIG = configured
+    runner = mock.Mock()
+
+    with mock.patch(
+        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+    ):
+        agent = Agent()
+
+    assert agent.config is configured
+    assert agent._runner is runner
+
+
 def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
     with mock.patch("agents.core.agent.PydanticAgent"):

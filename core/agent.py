@@ -52,7 +52,7 @@ class AgentConfig:
     """Configuration inputs for constructing a Pydantic AI agent."""
     instructions: str
     # Declares which execution path this config targets; validated in __post_init__.
-    execution_backend: Literal["pydantic_ai", "pi_worker"] = "pydantic_ai"
+    execution_backend: Literal["pydantic_ai", "pi_worker", "codex_cli"] = "pydantic_ai"
     model: OpenAIChatModel | OpenAIResponsesModel | str | None = None
     settings: OpenAIResponsesModelSettings | None = None
     result_type: type[Any] | None = None
@@ -61,7 +61,7 @@ class AgentConfig:
     extra_kwargs: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        _valid_backends = frozenset({"pydantic_ai", "pi_worker"})
+        _valid_backends = frozenset({"pydantic_ai", "pi_worker", "codex_cli"})
         if self.execution_backend not in _valid_backends:
             raise ValueError(
                 f"execution_backend must be one of {sorted(_valid_backends)!r}; "
@@ -99,7 +99,14 @@ class Agent:
                 )
 
         self.config = config
-        self._pydantic_agent = self._create_pydantic_agent(config)
+        if config.execution_backend == "codex_cli":
+            from .codex_runner import CodexRunner
+
+            self._pydantic_agent = None
+            self._runner = CodexRunner.from_config(config)
+        else:
+            self._pydantic_agent = self._create_pydantic_agent(config)
+            self._runner = self._pydantic_agent
 
     def _create_pydantic_agent(self, config: AgentConfig) -> PydanticAgent:
         """Construct a configured `pydantic_ai.Agent` instance.
@@ -168,21 +175,19 @@ class Agent:
         """Execute without persistence (async); returns pydantic_ai run result."""
         import json
 
-        logger.info("Running agent async with payload: %s", input_payload)
-        logger.info("Instructions: %s", self.config.instructions)
-        output = await self._pydantic_agent.run(json.dumps(input_payload))
-        logger.info("Output: %s", output)
-        return output
+        logger.info("Running agent async with backend %s", self.config.execution_backend)
+        if self.config.execution_backend == "codex_cli":
+            return await self._runner.run(input_payload)
+        return await self._pydantic_agent.run(json.dumps(input_payload))
 
     def run_sync(self, input_payload: Optional[Dict[str, Any]] = None) -> Any:
         """Execute without persistence; returns pydantic_ai run result."""
         import json
 
-        logger.info("Running agent sync with payload: %s", input_payload)
-        logger.info("Instructions: %s", self.config.instructions)
-        output = self._pydantic_agent.run_sync(json.dumps(input_payload))
-        logger.info("Output: %s", output)
-        return output
+        logger.info("Running agent sync with backend %s", self.config.execution_backend)
+        if self.config.execution_backend == "codex_cli":
+            return self._runner.run_sync(input_payload)
+        return self._pydantic_agent.run_sync(json.dumps(input_payload))
 
 
 class ManagedAgent:
@@ -202,7 +207,8 @@ class ManagedAgent:
         self._pydantic_agent = (
             agent._pydantic_agent if isinstance(agent, Agent) else agent
         )
-        self._agent_label = agent_label or getattr(self._pydantic_agent, "name", None)
+        label_source = agent._runner if isinstance(agent, Agent) else agent
+        self._agent_label = agent_label or getattr(label_source, "name", None)
         self._started = False
 
         from agents.models import AgentRun, AgentRunStatus
