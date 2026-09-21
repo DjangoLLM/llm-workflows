@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import contextlib
-import os
 import shutil
-import socket
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 from django.conf import settings
+from django.db import DEFAULT_DB_ALIAS
 from django.db import connection
 
 import agents.core.agent_config_registrations as agent_config_registrations
@@ -43,6 +41,8 @@ class ModelDumpResult:
 def ensure_vector_extension(django_db_setup, django_db_blocker) -> None:
     """Enable pgvector extension in the active test database."""
     with django_db_blocker.unblock():
+        if connection.vendor != "postgresql":
+            return
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
@@ -88,50 +88,21 @@ def inline_thread(monkeypatch):
     return InlineThread
 
 
-def _parse_temporal_host_port(url: str) -> tuple[str, int]:
-    if "://" in url:
-        url = url.split("://", 1)[1]
-    host_port = url.split("/", 1)[0]
-    if ":" in host_port:
-        host, port = host_port.rsplit(":", 1)
-        return host, int(port)
-    return host_port, 7233
-
-
-def _check_temporal_reachable(url: str) -> bool:
-    host, port = _parse_temporal_host_port(url)
-    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-        sock.settimeout(2)
-        try:
-            sock.connect((host, port))
-        except OSError:
-            return False
-        return True
-
-
 @pytest.fixture(autouse=True)
 def fail_fast_live_prerequisites(request):
-    if "live" not in request.keywords:
+    if "codex_live" not in request.keywords:
         return
 
     missing: list[str] = []
 
-    required_binaries = ["codex", "gemini"]
-    for binary in required_binaries:
-        if shutil.which(binary) is None:
-            missing.append(f"binary:{binary}")
-
-    required_env = ["OPENAI_API_KEY", "GEMINI_API_KEY", "CODEX_API_KEY", "DATABASE_URL"]
-    for key in required_env:
-        if not os.environ.get(key):
-            missing.append(f"env:{key}")
-
-    temporal_url = getattr(settings, "TEMPORAL_SERVER_URL", "localhost:7233")
-    if not _check_temporal_reachable(temporal_url):
-        missing.append(f"temporal:{temporal_url}")
+    if shutil.which("codex") is None:
+        missing.append("binary:codex")
+    database = settings.DATABASES.get(DEFAULT_DB_ALIAS, {})
+    if not database.get("ENGINE"):
+        missing.append(f"database:{DEFAULT_DB_ALIAS}")
 
     if missing:
         pytest.fail(
-            "Live test prerequisites missing: " + ", ".join(missing),
+            "Codex live test prerequisites missing: " + ", ".join(missing),
             pytrace=False,
         )

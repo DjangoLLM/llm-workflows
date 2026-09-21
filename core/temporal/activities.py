@@ -10,24 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
-# pi-worker inference (TypeScript-owned; Python-side stub for routing)
-# ==============================================================================
-
-PI_INFERENCE_TASK_QUEUE = "pi-inference-queue"
-
-
-@activity.defn(name="piInference")
-async def pi_inference_stub(input: dict) -> dict:
-    """Routing stub for the TypeScript pi-worker `piInference` activity.
-
-    Workflows schedule this activity onto `pi-inference-queue` so Temporal
-    forwards the task to the TS worker. Never executes in Python — its
-    `@activity.defn(name="piInference")` registration is the only thing that
-    matters.
-    """
-    raise NotImplementedError("piInference is owned by the TypeScript pi-worker.")
-
-# ==============================================================================
 # Pipeline Lifecycle Activities
 # ==============================================================================
 

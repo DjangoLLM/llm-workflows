@@ -5,11 +5,6 @@ import sys
 from agents.core.tools.mcp.server import build_mcp_server
 from agents.core.tools.registry import ToolRegistry, default_registry
 
-# NOTE: coverage of this module's `server.run(...)` call is intentionally low —
-# the real transport loop is exercised by manual verification (LLD §14) rather
-# than by unit tests, which use FastMCP's in-process client instead.
-
-
 def run(
     toolset_name: str,
     *,
@@ -38,7 +33,10 @@ def run(
         )
         raise SystemExit(2)
 
-    server = build_mcp_server(toolset_name, registry=registry)
+    if name is None:
+        server = build_mcp_server(toolset_name, registry=registry)
+    else:
+        server = build_mcp_server(toolset_name, name=name, registry=registry)
 
     transport_kwargs: dict[str, object] = {}
     if transport in ("http", "sse"):

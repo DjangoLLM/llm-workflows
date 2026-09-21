@@ -14,11 +14,8 @@ dependencies = [
     "fastmcp>=2,<3",
     "pydantic-ai==1.34.0",
     "temporalio>=1.18.0",
-    "coding-agent-drivers",
+    "coding-agent-drivers @ git+https://github.com/charleeagni/django-agent.git@a9e1911dbe5ad4c53b659b80d995fb57339e0f0d#subdirectory=DjangoAgent/coding-agent-drivers",
 ]
-
-[tool.uv.sources]
-coding-agent-drivers = { path = "../coding-agent-drivers", editable = true }
 
 [tool.setuptools]
 include-package-data = true

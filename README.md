@@ -25,6 +25,101 @@ AGENTS_TEMPORAL_PLUGIN_MODULES = [
 ]
 ```
 
+## Typed inference through the Codex CLI
+
+Set `execution_backend="codex_cli"` to run inference with the installed
+`codex` executable instead of Pydantic AI. The package pins its
+`coding-agent-drivers` dependency to an exact Git revision in
+`pyproject.toml`, so a normal package installation does not depend on a sibling
+editable checkout.
+
+```python
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+from agents.core.agent import Agent, AgentConfig, ManagedAgent
+
+
+class Details(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[str]
+    note: str | None
+
+
+class Answer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    marker: Literal["codex-ok"]
+    count: int
+    details: Details
+
+
+config = AgentConfig(
+    instructions="Return marker codex-ok, count 2, two values, and a null note.",
+    execution_backend="codex_cli",
+    model=None,
+    result_type=Answer,
+    extra_kwargs={
+        "codex_working_dir": Path.cwd(),
+        "codex_timeout_seconds": 180,
+    },
+)
+
+direct = Agent(config).run_sync({"request": "typed example"})
+assert type(direct.output) is Answer
+
+managed = ManagedAgent(config=config)
+stored_output = managed.run_sync({"request": "typed example"})
+assert stored_output == direct.output.model_dump(mode="json")
+```
+
+`model` is optional. A nonempty string is passed to `codex --model`. With
+`model=None`, the command omits that flag and the Codex CLI resolves its
+configured default. `codex_working_dir` defaults to the current directory and
+must name an existing directory. `codex_timeout_seconds` defaults to 300 and
+must be a positive finite number.
+
+The backend reuses authentication from the installed Codex CLI. Sign in with
+the CLI before running the agent. It does not accept an API key in
+`extra_kwargs`.
+
+### Result schema contract
+
+`result_type` must be a Pydantic `BaseModel` subclass with
+`ConfigDict(extra="forbid")`. Supported fields are fixed nested models,
+strings, integers, numbers, booleans, homogeneous lists, scalar literals or
+enums, and a nullable union of one supported type with `None`. Local,
+nonrecursive model references are supported. Root models, recursive models,
+arbitrary dictionaries, general unions, tuples, and constraints such as
+lengths or numeric bounds are rejected before the CLI starts. Every declared
+field must appear in the response JSON, including fields with Python defaults.
+The final response is validated strictly against the original model.
+
+`Agent.run()` and `Agent.run_sync()` return a result whose `output` is the
+declared model instance. `ManagedAgent` converts that model to JSON-safe data,
+stores it on `AgentRun.output`, and marks the run `SUCCEEDED`. A launch error,
+timeout, nonzero exit, terminal failure event, missing final response, or
+schema validation error raises on a direct call. A managed call records the
+same error message and marks the run `FAILED`.
+
+Each call gets its own temporary schema and final-response files. The runner
+removes them after success, failure, timeout, or cancellation.
+
+### Tools and sandbox limits
+
+The framework does not bridge `AgentConfig.tools` or `toolsets` into Codex;
+the backend rejects both. The runner requests Codex's read-only sandbox policy,
+but that policy is not filesystem isolation. The process can still read local
+files allowed by the Codex sandbox, and trusted Codex configuration may make
+other local tools available. Only use this backend with a working directory
+and Codex configuration you trust.
+
+See [tests/TESTING.md](tests/TESTING.md) for deterministic and live test
+commands.
+
 ## Primitives and Architecture
 
 This package provides a framework for building AI pipelines focused on observability and auditability. It mixes deterministic Python code with non-deterministic AI steps, while keeping an absolute database ledger of everything that happens. 

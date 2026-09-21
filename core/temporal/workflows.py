@@ -1,37 +1,10 @@
 from datetime import timedelta
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
-    from agents.core.temporal.activities import (
-        PI_INFERENCE_TASK_QUEUE,
-        mark_pipeline_failed_activity,
-        pi_inference_stub,
-    )
-
-
-@workflow.defn(name="agents.PiInferenceTurnWorkflow")
-class PiInferenceTurnWorkflow:
-    """Single-turn pi-worker inference dispatcher.
-
-    Runs on the host project's primary task queue. Schedules exactly one
-    `piInference` activity on `pi-inference-queue` (the TypeScript worker)
-    and returns its result verbatim. The multi-turn agent loop is driven
-    by `pydantic_ai` on the caller side, not here.
-    """
-
-    @workflow.run
-    async def run(self, payload: dict) -> dict:
-        payload = dict(payload)
-        timeout_seconds = int(payload.pop("activity_timeout_seconds", 60) or 60)
-        result: Any = await workflow.execute_activity(
-            pi_inference_stub,
-            payload,
-            task_queue=PI_INFERENCE_TASK_QUEUE,
-            start_to_close_timeout=timedelta(seconds=timeout_seconds),
-        )
-        return result
+    from agents.core.temporal.activities import mark_pipeline_failed_activity
 
 
 class WorkflowExecutionHelpers:
