@@ -27,8 +27,7 @@ NC = "\033[0m"
 
 async def main() -> int:
     demo_dir = Path(__file__).resolve().parent
-    venv_python = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python"
-    python_bin = str(venv_python) if venv_python.exists() else sys.executable
+    python_bin = sys.executable
 
     env = os.environ.copy()
     env["DJANGO_SETTINGS_MODULE"] = "feedback_demo.settings"

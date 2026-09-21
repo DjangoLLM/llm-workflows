@@ -11,12 +11,7 @@ from agents.core.temporal.activities import (
     mark_pipeline_success_activity,
     execute_pipeline_step_activity,
 )
-from agents.core.temporal.mcp_pi_activities import (
-    call_pi_tool_activity,
-    list_pi_tools_activity,
-)
 from agents.core.temporal.worker_plugins import TemporalActivityRegistration, TemporalWorkerPlugin
-from agents.core.temporal.workflows import PiInferenceTurnWorkflow
 
 
 def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
@@ -45,14 +40,6 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
             activity_name="agents.handle_random_brain_dump_activity",
             activity_callable=handle_random_brain_dump_activity,
         ),
-        TemporalActivityRegistration(
-            activity_name="agents.mcp.list_pi_tools",
-            activity_callable=list_pi_tools_activity,
-        ),
-        TemporalActivityRegistration(
-            activity_name="agents.mcp.call_pi_tool",
-            activity_callable=call_pi_tool_activity,
-        ),
     ]
 
     generated_activities: list[TemporalActivityRegistration] = []
@@ -66,6 +53,6 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
 
     return TemporalWorkerPlugin(
         plugin_slug="agents",
-        workflows=[PiInferenceTurnWorkflow],
+        workflows=[],
         activities=[*static_activities, *generated_activities],
     )

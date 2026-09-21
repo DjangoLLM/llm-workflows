@@ -6,7 +6,12 @@ from agents.core.tools.mcp.adapter import build_tool_adapter
 from agents.core.tools.registry import ToolRegistry, default_registry
 
 
-def build_mcp_server(toolset_name: str, *, registry: ToolRegistry = default_registry):
+def build_mcp_server(
+    toolset_name: str,
+    *,
+    name: str | None = None,
+    registry: ToolRegistry = default_registry,
+):
     """Build a FastMCP server exposing every member tool of `toolset_name`.
 
     Refuses (SystemExit) if the toolset is missing or not registered with
@@ -33,7 +38,7 @@ def build_mcp_server(toolset_name: str, *, registry: ToolRegistry = default_regi
         )
         raise SystemExit(3)
 
-    server = FastMCP(name=toolset_name)
+    server = FastMCP(name=name or toolset_name)
     tools = registry.resolve_toolset(toolset_name)
     for tool in tools:
         server.tool(build_tool_adapter(tool), name=tool.name)
