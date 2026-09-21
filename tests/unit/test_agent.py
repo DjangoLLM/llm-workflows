@@ -169,7 +169,7 @@ def test_agent_config_default_execution_backend() -> None:
 def test_agent_config_rejects_unsupported_backend(backend: str) -> None:
     with pytest.raises(
         ValueError,
-        match=rf"execution_backend must be 'pydantic_ai'; got '{backend}'",
+        match=rf"execution_backend must be 'pydantic_ai' or 'jev'; got '{backend}'",
     ):
         AgentConfig(instructions="test", execution_backend=backend)
 
@@ -185,7 +185,7 @@ def test_agent_kwargs_reject_backend_before_model_or_registry_resolution(monkeyp
 
     with pytest.raises(
         ValueError,
-        match="execution_backend must be 'pydantic_ai'; got 'pi_worker'",
+        match="execution_backend must be 'pydantic_ai' or 'jev'; got 'pi_worker'",
     ):
         Agent(
             instructions="test",

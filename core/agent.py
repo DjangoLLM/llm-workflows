@@ -6,6 +6,7 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any, Callable, Iterable, Literal, Mapping, Optional
 
 import django
@@ -27,20 +28,27 @@ agent_run_finished = django.dispatch.Signal()
 class AgentConfig:
     """Configuration inputs for constructing a Pydantic AI agent."""
     instructions: str
-    execution_backend: Literal["pydantic_ai"] = "pydantic_ai"
+    execution_backend: Literal["pydantic_ai", "jev"] = "pydantic_ai"
     model: OpenAIChatModel | OpenAIResponsesModel | str | None = None
     settings: OpenAIResponsesModelSettings | None = None
     result_type: type[Any] | None = None
     tools: Iterable[Callable[..., Any]] | None = None
     toolsets: Iterable[str] | None = None
     extra_kwargs: Mapping[str, Any] | None = None
+    # Jev only: choice heads keyed by name, each {"criteria": {id: label}, "instructions": {...}?}.
+    questions: Mapping[str, Mapping[str, Any]] | None = None
 
     def __post_init__(self) -> None:
-        if self.execution_backend != "pydantic_ai":
+        if self.execution_backend not in ("pydantic_ai", "jev"):
             raise ValueError(
-                "execution_backend must be 'pydantic_ai'; "
+                "execution_backend must be 'pydantic_ai' or 'jev'; "
                 f"got {self.execution_backend!r}"
             )
+        if self.execution_backend == "jev":
+            if not self.questions or any("criteria" not in q for q in self.questions.values()):
+                raise ValueError("jev backend requires `questions` with a `criteria` mapping per head")
+            if self.model is not None and not isinstance(self.model, str):
+                raise ValueError("jev backend takes `model` as a string, e.g. 'jev-latest'")
 
 
 class Agent:
@@ -70,10 +78,13 @@ class Agent:
                     tools=kwargs.get('tools'),
                     toolsets=kwargs.get('toolsets'),
                     extra_kwargs=kwargs.get('extra_kwargs'),
+                    questions=kwargs.get('questions'),
                 )
 
         self.config = config
-        self._pydantic_agent = self._create_pydantic_agent(config)
+        self._pydantic_agent = (
+            None if config.execution_backend == "jev" else self._create_pydantic_agent(config)
+        )
 
     def _create_pydantic_agent(self, config: AgentConfig) -> PydanticAgent:
         """Construct a configured `pydantic_ai.Agent` instance."""
@@ -107,9 +118,25 @@ class Agent:
 
         return PydanticAgent(model=model, model_settings=model_settings, **agent_kwargs)
 
+    def _run_jev(self, input_payload: Optional[Dict[str, Any]]) -> SimpleNamespace:
+        """Jev path: the payload is the observed state; output mirrors pydantic_ai's `.output`."""
+        from agents.core.jev import decide
+
+        config = self.config
+        return SimpleNamespace(output=decide(
+            instructions=config.instructions,
+            questions=config.questions or {},
+            model=config.model,
+            state=input_payload,
+        ))
+
     async def run(self, input_payload: Optional[Dict[str, Any]] = None) -> Any:
         """Execute without persistence (async); returns pydantic_ai run result."""
+        import asyncio
         import json
+
+        if self.config.execution_backend == "jev":
+            return await asyncio.to_thread(self._run_jev, input_payload)
 
         logger.info("Running agent async with payload: %s", input_payload)
         logger.info("Instructions: %s", self.config.instructions)
@@ -120,6 +147,9 @@ class Agent:
     def run_sync(self, input_payload: Optional[Dict[str, Any]] = None) -> Any:
         """Execute without persistence; returns pydantic_ai run result."""
         import json
+
+        if self.config.execution_backend == "jev":
+            return self._run_jev(input_payload)
 
         logger.info("Running agent sync with payload: %s", input_payload)
         logger.info("Instructions: %s", self.config.instructions)
