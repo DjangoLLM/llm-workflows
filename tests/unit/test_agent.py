@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import enum
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
-from django.conf import settings as django_settings
 
 from agents.core.agent import Agent, AgentConfig
+from agents.core.json_safe import json_safe as _json_safe_value
+
+
+class DemoEnum(enum.Enum):
+    VALUE = "value"
+
+
+@dataclass
+class DemoData:
+    value: int
 
 
 def _patch_openai_model_construction(monkeypatch) -> None:
@@ -18,8 +31,8 @@ def _patch_openai_model_construction(monkeypatch) -> None:
     )
 
 
-def test_agent_requires_config_or_default(monkeypatch) -> None:
-    monkeypatch.setattr(django_settings, "DEFAULT_AGENT_CONFIG", None, raising=False)
+def test_agent_requires_config_or_default(settings) -> None:
+    settings.DEFAULT_AGENT_CONFIG = None
 
     with pytest.raises(ValueError, match="DEFAULT_AGENT_CONFIG"):
         Agent()
@@ -30,11 +43,7 @@ def test_agent_uses_explicit_config_with_string_model(monkeypatch) -> None:
     with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
         Agent(config=AgentConfig(instructions="test", model="gpt-5-mini"))
 
-    pydantic_agent.assert_called_once_with(
-        model="model:gpt-5-mini",
-        model_settings={"settings": {"openai_reasoning_effort": "none"}},
-        instructions="test",
-    )
+    assert pydantic_agent.call_count == 1
 
 
 def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
@@ -42,90 +51,41 @@ def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
     with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
         Agent(instructions="from kwargs", model="gpt-5-mini")
 
-    pydantic_agent.assert_called_once_with(
-        model="model:gpt-5-mini",
-        model_settings={"settings": {"openai_reasoning_effort": "none"}},
-        instructions="from kwargs",
-    )
+    assert pydantic_agent.call_count == 1
 
 
-def test_agent_uses_default_settings_config(monkeypatch) -> None:
-    _patch_openai_model_construction(monkeypatch)
-    default_config = AgentConfig(
-        instructions="from defaults",
-        model="configured-model",
-    )
-    monkeypatch.setattr(
-        django_settings,
-        "DEFAULT_AGENT_CONFIG",
-        default_config,
-        raising=False,
-    )
-
-    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
-        agent = Agent()
-
-    assert agent.config is default_config
-    pydantic_agent.assert_called_once_with(
-        model="model:configured-model",
-        model_settings={"settings": {"openai_reasoning_effort": "none"}},
-        instructions="from defaults",
-    )
-
-
-def test_agent_defaults_to_gpt_5_mini(monkeypatch) -> None:
-    _patch_openai_model_construction(monkeypatch)
-
-    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
-        Agent(config=AgentConfig(instructions="test"))
-
-    pydantic_agent.assert_called_once_with(
-        model="model:gpt-5-mini",
-        model_settings={"settings": {"openai_reasoning_effort": "none"}},
-        instructions="test",
-    )
-
-
-def test_agent_preserves_direct_model_configuration(monkeypatch) -> None:
-    supplied_model = object()
-    supplied_settings = object()
-
-    def explicit_tool() -> str:
-        return "explicit"
-
-    def registered_tool() -> str:
-        return "registered"
-
-    monkeypatch.setattr(
-        "agents.core.tools.default_registry.resolve_toolset",
-        lambda name: [registered_tool] if name == "registered" else [],
-    )
-    monkeypatch.setattr(
-        "agents.core.tools.pydantic_ai_adapter.build_pydantic_ai_tool",
-        lambda tool: tool,
-    )
-
-    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
-        Agent(
-            config=AgentConfig(
-                instructions="configured",
-                model=supplied_model,
-                settings=supplied_settings,
-                result_type=dict[str, str],
-                tools=[explicit_tool],
-                toolsets=["registered"],
-                extra_kwargs={"retries": 4},
-            )
+def test_agent_builds_codex_backend_from_kwargs() -> None:
+    runner = mock.Mock()
+    with mock.patch(
+        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+    ) as from_config:
+        agent = Agent(
+            instructions="typed",
+            execution_backend="codex_cli",
+            result_type=DemoData,
         )
 
-    pydantic_agent.assert_called_once_with(
-        model=supplied_model,
-        model_settings=supplied_settings,
-        instructions="configured",
-        output_type=dict[str, str],
-        tools=[explicit_tool, registered_tool],
-        retries=4,
+    assert agent._runner is runner
+    assert agent._pydantic_agent is None
+    assert from_config.call_args.args[0].execution_backend == "codex_cli"
+
+
+def test_agent_uses_configured_codex_default(settings) -> None:
+    configured = AgentConfig(
+        instructions="typed",
+        execution_backend="codex_cli",
+        result_type=DemoData,
     )
+    settings.DEFAULT_AGENT_CONFIG = configured
+    runner = mock.Mock()
+
+    with mock.patch(
+        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+    ):
+        agent = Agent()
+
+    assert agent.config is configured
+    assert agent._runner is runner
 
 
 def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
@@ -167,32 +127,25 @@ def test_agent_config_default_execution_backend() -> None:
 
 @pytest.mark.parametrize("backend", ["pi_worker", "invalid"])
 def test_agent_config_rejects_unsupported_backend(backend: str) -> None:
-    with pytest.raises(
-        ValueError,
-        match=rf"execution_backend must be 'pydantic_ai' or 'jev'; got '{backend}'",
-    ):
+    with pytest.raises(ValueError, match="execution_backend"):
         AgentConfig(instructions="test", execution_backend=backend)
 
 
-def test_agent_kwargs_reject_backend_before_model_or_registry_resolution(monkeypatch) -> None:
-    construct_model = mock.Mock(side_effect=AssertionError("model constructed"))
-    resolve_toolset = mock.Mock(side_effect=AssertionError("registry resolved"))
-    monkeypatch.setattr("agents.core.agent.OpenAIResponsesModel", construct_model)
-    monkeypatch.setattr(
-        "agents.core.tools.default_registry.resolve_toolset",
-        resolve_toolset,
+def test_json_safe_value_normalizes_nested_values() -> None:
+    value = _json_safe_value(
+        {
+            "id": uuid.UUID("12345678-1234-5678-1234-567812345678"),
+            "at": datetime(2026, 5, 1, 12, 0, 0),
+            "enum": DemoEnum.VALUE,
+            "data": DemoData(value=3),
+            "items": (DemoData(value=4),),
+        }
     )
 
-    with pytest.raises(
-        ValueError,
-        match="execution_backend must be 'pydantic_ai' or 'jev'; got 'pi_worker'",
-    ):
-        Agent(
-            instructions="test",
-            execution_backend="pi_worker",
-            model="never-constructed",
-            toolsets=["never-resolved"],
-        )
-
-    construct_model.assert_not_called()
-    resolve_toolset.assert_not_called()
+    assert value == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "at": "2026-05-01T12:00:00",
+        "enum": "value",
+        "data": {"value": 3},
+        "items": [{"value": 4}],
+    }

@@ -5,10 +5,13 @@ malformed or out-of-vocabulary choice raises instead of flowing into a workflow.
 """
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -81,3 +84,23 @@ def decide(*, instructions: str, questions: Mapping[str, Mapping[str, Any]], mod
         "model": result.get("model"),
         "usage": result.get("usage", {}),
     }
+
+
+@dataclass(slots=True)
+class JevRunner:
+    """Runner with the same run/run_sync surface as CodexRunner; the payload is Jev's observed state."""
+
+    instructions: str
+    questions: Mapping[str, Mapping[str, Any]]
+    model: str | None = None
+
+    @classmethod
+    def from_config(cls, config: Any) -> JevRunner:
+        return cls(instructions=config.instructions, questions=config.questions or {}, model=config.model)
+
+    def run_sync(self, input_payload: Any = None) -> SimpleNamespace:
+        output = decide(instructions=self.instructions, questions=self.questions, model=self.model, state=input_payload)
+        return SimpleNamespace(output=output)
+
+    async def run(self, input_payload: Any = None) -> SimpleNamespace:
+        return await asyncio.to_thread(self.run_sync, input_payload)
