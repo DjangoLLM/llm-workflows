@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -178,6 +179,38 @@ def test_agent_pi_worker_passes_registry_toolset(monkeypatch) -> None:
     assert "_pi_worker_echo" in tool_names
 
 
+def test_agent_pi_worker_forwards_config_instructions_with_system_prompt() -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured["payload"] = payload
+            return {"finalText": "ok", "toolCalls": [], "usage": {}}
+
+    async def _factory():
+        return _FakeClient()
+
+    agent = Agent(
+        config=AgentConfig(
+            instructions="Follow the configured agent instructions.",
+            execution_backend="pi_worker",
+            model="stub-model",
+            extra_kwargs={
+                "provider": "stub",
+                "system_prompt": "Keep the explicit system prompt.",
+                "pi_worker_temporal_client_factory": _factory,
+            },
+        )
+    )
+
+    result = asyncio.run(agent.run({"prompt": "hello"}))
+
+    assert result.output == "ok"
+    assert captured["payload"]["systemPrompt"] == (
+        "Keep the explicit system prompt.\n\nFollow the configured agent instructions."
+    )
+
+
 def test_pi_worker_model_request_translates_text_response() -> None:
     from pydantic_ai.messages import ModelRequest, TextPart, UserPromptPart
     from pydantic_ai.models import ModelRequestParameters
@@ -221,6 +254,61 @@ def test_pi_worker_model_request_translates_text_response() -> None:
     assert response.usage.output_tokens == 5
     assert captured["task_queue"] == "agents-test"
     assert captured["payload"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.parametrize(
+    ("temporal_queue", "pi_worker_host_queue", "expected_queue"),
+    [
+        (None, None, "ai-pipeline-queue"),
+        ("shared-queue", None, "shared-queue"),
+        ("shared-queue", "pi-host-queue", "pi-host-queue"),
+    ],
+)
+def test_pi_worker_model_routes_to_bundled_worker_queue(
+    settings,
+    temporal_queue: str | None,
+    pi_worker_host_queue: str | None,
+    expected_queue: str,
+) -> None:
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+    from pydantic_ai.models import ModelRequestParameters
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    for setting_name, value in (
+        ("TEMPORAL_TASK_QUEUE", temporal_queue),
+        ("AGENTS_PI_WORKER_HOST_TASK_QUEUE", pi_worker_host_queue),
+    ):
+        if value is None:
+            delattr(settings, setting_name)
+        else:
+            setattr(settings, setting_name, value)
+
+    captured: dict[str, object] = {}
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured["task_queue"] = task_queue
+            return {"finalText": "ok", "toolCalls": [], "usage": {}}
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+    )
+
+    asyncio.run(
+        model.request(
+            messages=[ModelRequest(parts=[UserPromptPart(content="hi")])],
+            model_settings=None,
+            model_request_parameters=ModelRequestParameters(),
+        )
+    )
+
+    assert captured["task_queue"] == expected_queue
 
 
 def test_pi_worker_model_request_translates_tool_call() -> None:
@@ -361,6 +449,69 @@ def test_pi_worker_model_request_forwards_output_object_for_native_mode() -> Non
         "type": "object",
         "properties": {"summary": {"type": "string"}},
     }
+
+
+def test_pi_worker_agent_retries_malformed_structured_output() -> None:
+    from pydantic import BaseModel
+    from pydantic_ai import Agent as PydanticAgent
+
+    from agents.core.tools.mcp.pi_model import PiWorkerModel
+
+    class _StructuredOutput(BaseModel):
+        answer: int
+
+    captured_payloads: list[dict[str, object]] = []
+
+    class _FakeClient:
+        async def execute_workflow(self, workflow, payload, *, id, task_queue):
+            captured_payloads.append(payload)
+            if len(captured_payloads) == 1:
+                return {
+                    "finalText": "",
+                    "toolCalls": [
+                        {
+                            "name": "final_result",
+                            "id": "output-call-1",
+                            "arguments": {"answer": "not-an-integer"},
+                        }
+                    ],
+                    "usage": {},
+                }
+            return {
+                "finalText": "",
+                "toolCalls": [
+                    {
+                        "name": "final_result",
+                        "id": "output-call-2",
+                        "arguments": {"answer": 42},
+                    }
+                ],
+                "usage": {},
+            }
+
+    async def _factory():
+        return _FakeClient()
+
+    model = PiWorkerModel(
+        provider="stub",
+        model_name="stub-model",
+        temporal_client_factory=_factory,
+        task_queue="agents-test",
+    )
+    agent = PydanticAgent(model=model, output_type=_StructuredOutput)
+
+    result = asyncio.run(agent.run("Return a structured answer."))
+
+    assert result.output == _StructuredOutput(answer=42)
+    retry_message = captured_payloads[1]["messages"][-1]
+    assert retry_message["role"] == "user"
+    assert retry_message["content"].startswith("<tool_result>")
+    retry_result = json.loads(
+        retry_message["content"].removeprefix("<tool_result>").removesuffix("</tool_result>")
+    )
+    assert retry_result["tool"] == "final_result"
+    assert retry_result["tool_call_id"] == "output-call-1"
+    assert "Fix the errors and try again." in retry_result["result"]
 
 
 def test_json_safe_value_normalizes_nested_values() -> None:

@@ -2,14 +2,14 @@
 
 from django.db import migrations, models
 import django.db.models.deletion
+from django.apps import apps
 
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('plane_agent', '0001_initial'),
-        ('agents', '0011_remove_proposedmodule_context_summary_and_more'),
-    ]
+    dependencies = [('agents', '0011_remove_proposedmodule_context_summary_and_more')]
+    if any(config.label == 'plane_agent' for config in apps.get_app_configs()):
+        dependencies.insert(0, ('plane_agent', '0001_initial'))
 
     operations = [
         migrations.RenameField(

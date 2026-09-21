@@ -36,7 +36,7 @@ def build_mcp_server(toolset_name: str, *, registry: ToolRegistry = default_regi
     server = FastMCP(name=toolset_name)
     tools = registry.resolve_toolset(toolset_name)
     for tool in tools:
-        server.tool(build_tool_adapter(tool), name=tool.name)
+        server.add_tool(build_tool_adapter(tool))
 
     bound = ",".join(sorted(t.name for t in tools))
     print(

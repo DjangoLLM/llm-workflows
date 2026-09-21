@@ -18,6 +18,7 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    RetryPromptPart,
     SystemPromptPart,
     TextPart,
     ToolCallPart,
@@ -68,7 +69,7 @@ def _default_task_queue() -> str:
 
     queue = getattr(django_settings, DEFAULT_TASK_QUEUE_SETTING, None)
     if not queue:
-        queue = getattr(django_settings, "AGENTS_TEMPORAL_TASK_QUEUE", "agents")
+        queue = getattr(django_settings, "TEMPORAL_TASK_QUEUE", "ai-pipeline-queue")
     return str(queue)
 
 
@@ -175,6 +176,24 @@ class PiWorkerModel(Model):
                         pi_messages.append(
                             {"role": "user", "content": f"<tool_result>{encoded}</tool_result>"}
                         )
+                    elif isinstance(part, RetryPromptPart):
+                        feedback = part.model_response()
+                        if part.tool_name is None:
+                            pi_messages.append({"role": "user", "content": feedback})
+                        else:
+                            encoded = json.dumps(
+                                {
+                                    "tool": part.tool_name,
+                                    "tool_call_id": part.tool_call_id,
+                                    "result": feedback,
+                                }
+                            )
+                            pi_messages.append(
+                                {
+                                    "role": "user",
+                                    "content": f"<tool_result>{encoded}</tool_result>",
+                                }
+                            )
                     else:
                         raise NotImplementedError(
                             f"PiWorkerModel does not support request part kind {type(part).__name__}"
@@ -200,6 +219,9 @@ class PiWorkerModel(Model):
                 raise NotImplementedError(
                     f"PiWorkerModel does not support message type {type(message).__name__}"
                 )
+
+        if instructions := self._get_instructions(messages, params):
+            system_prompts.append(instructions)
 
         tools: list[dict[str, Any]] = [
             {

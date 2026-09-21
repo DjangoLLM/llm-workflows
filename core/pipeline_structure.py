@@ -1,33 +1,15 @@
 import logging
 from abc import ABC, abstractmethod
-import dataclasses
-import enum
-from collections.abc import Mapping as ABCMapping, Sequence as ABCSequence
-from datetime import date, datetime
 from typing import Tuple, Dict, Type, Any, Optional
+from uuid import UUID
 
+from django.db import transaction
+
+from agents.core.json_safe import json_safe
 from agents.core.agent import Agent, AgentConfig, ManagedAgent
 from agents.models import PipelineRun, PipelineStep as PipelineStepModel, PipelineStatus, AgentRun, AgentRunStatus
 
 logger = logging.getLogger(__name__)
-
-
-def _json_safe_value(value: Any) -> Any:
-    if dataclasses.is_dataclass(value):
-        return _json_safe_value(dataclasses.asdict(value))
-    if hasattr(value, "model_dump"):
-        return _json_safe_value(value.model_dump())
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if isinstance(value, enum.Enum):
-        return value.value
-    if isinstance(value, ABCMapping):
-        return {str(key): _json_safe_value(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_json_safe_value(item) for item in value]
-    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [_json_safe_value(item) for item in value]
-    return value
 
 
 class PipelineStep(ABC):
@@ -68,31 +50,50 @@ class PipelineStep(ABC):
         self.parent_ids = parent_ids or []
         self._agent_config_override = agent_config
 
-        # Create database record eagerly with all required data
-        run = PipelineRun.objects.get(pk=self.run_id)
+        with transaction.atomic():
+            # Create database record eagerly with all required data
+            run = PipelineRun.objects.get(pk=self.run_id)
+            try:
+                requested_parent_ids = {
+                    UUID(str(parent_id)) for parent_id in self.parent_ids
+                }
+            except ValueError as error:
+                raise ValueError("Parent IDs must be valid UUIDs") from error
+            parent_steps = list(
+                PipelineStepModel.objects.select_for_update().filter(
+                    run=run,
+                    pk__in=requested_parent_ids,
+                )
+            )
+            resolved_parent_ids = {parent.id for parent in parent_steps}
+            if resolved_parent_ids != requested_parent_ids:
+                raise ValueError(
+                    f"Parent steps must belong to pipeline run {run.id}"
+                )
 
-        # Initialize agent if configuration provided by subclass
-        config = self._resolve_agent_config()
-        if config:
-            # create Managed Agent for the step
-            self._managed_agent = ManagedAgent(config=config, agent_label=self.name)
-            self._agent_run_id = self._managed_agent.run_id
-            self._agent_run = AgentRun.objects.get(pk=self._agent_run_id)
+            # Initialize agent if configuration provided by subclass
+            config = self._resolve_agent_config()
+            if config:
+                # create Managed Agent for the step
+                self._managed_agent = ManagedAgent(config=config, agent_label=self.name)
+                self._agent_run_id = self._managed_agent.run_id
+                self._agent_run = AgentRun.objects.get(pk=self._agent_run_id)
 
-        else:
-            self._managed_agent = None
-            self._agent_run = None
+            else:
+                self._managed_agent = None
+                self._agent_run = None
 
-        # create the PipelineStep object egarly
-        step_model = PipelineStepModel.create_step(
-            run=run,
-            step_name=self.name,
-            order_index=self.order_index,
-            input_payload=self.payload,
-            agent_run=self._agent_run,
-        )
+            # create the PipelineStep object egarly
+            step_model = PipelineStepModel.create_step(
+                run=run,
+                step_name=self.name,
+                order_index=self.order_index,
+                input_payload=self.payload,
+                agent_run=self._agent_run,
+            )
+            step_model.parents.set(parent_steps)
 
-        self._step_model_id = str(step_model.id)
+            self._step_model_id = str(step_model.id)
 
     @property
     def agent_config(self) -> Optional[AgentConfig]:
@@ -210,7 +211,7 @@ class PipelineStep(ABC):
             final_payload, _ = post_processed
         else:
             final_payload = post_processed
-        final_payload = _json_safe_value(final_payload)
+        final_payload = json_safe(final_payload)
 
         step_model.mark_finished(PipelineStatus.SUCCEEDED, output_payload=final_payload)
         return final_payload
@@ -245,19 +246,19 @@ class PipelineStep(ABC):
         # Load parent run
         run = PipelineRun.objects.get(pk=self.run_id)
 
-        # Apply pre-execution payload shaping
-        pre_processed = self.pre_execute(self.payload, {})
-        if isinstance(pre_processed, tuple):
-            processed_payload, _ = pre_processed
-        else:
-            processed_payload = pre_processed
-
         # Mark step and run as executing
         step_model = PipelineStepModel.objects.get(pk=self._step_model_id)
         step_model.mark_running()
         run.set_running(self.name)
 
         try:
+            # Apply pre-execution payload shaping
+            pre_processed = self.pre_execute(self.payload, {})
+            if isinstance(pre_processed, tuple):
+                processed_payload, _ = pre_processed
+            else:
+                processed_payload = pre_processed
+
             # Execute core step logic
             output_data = self.execute(processed_payload)
 

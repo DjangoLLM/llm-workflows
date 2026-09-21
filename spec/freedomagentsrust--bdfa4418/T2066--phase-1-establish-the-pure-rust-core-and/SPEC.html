@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phase 1: Establish the pure Rust core and execution contracts</title><style>body{margin:0;background:#f4f2ed;color:#202825;font:17px/1.65 system-ui,sans-serif}main{max-width:900px;margin:32px auto;padding:40px 52px;background:#fff;border:1px solid #d6ddd6;border-radius:8px}h1{font-size:32px;line-height:1.22;letter-spacing:-.7px}h2{font-size:22px;margin-top:42px;padding-top:16px;border-top:1px solid #dce3dc}p,li{overflow-wrap:anywhere}li{margin:10px 0;padding-left:4px}a{color:#116149}nav{font-size:14px;display:flex;gap:20px;flex-wrap:wrap}ol,ul{padding-left:25px}.tag{font:700 12px/1.5 system-ui;letter-spacing:1px;text-transform:uppercase;color:#486b5a}@media(max-width:640px){main{margin:0;padding:22px;border:0}h1{font-size:27px}}@media print{body{background:white}main{border:0;margin:0;padding:0}nav{display:none}h2{break-after:avoid}li{break-inside:avoid}}</style></head><body><main><p class="tag">FreedomAgentsRust · CODING-2066 · Specification</p><nav aria-label="Document navigation"><a href="SPEC.md">Markdown source</a><a href="#implementation-decisions">Decisions</a><a href="#testing-decisions">Acceptance tests</a></nav><h1 id="phase-1-establish-the-pure-rust-core-and-execution-contracts">Phase 1: Establish the pure Rust core and execution contracts</h1>
+<p>CODING-2066 · Implementation specification · 2026-09-21</p>
+<p>Pure Rust execution only. SQLite is the initial execution ledger; Temporal remains an external service with Rust workflows and activities. No Python or JavaScript execution workers, CLI inference backend, or product UI is required. Phase 5 is the core-working milestone. Later database backends, public multi-user hosting, and store synchronization are deferred.</p>
+<h2 id="problem-statement">Problem statement</h2>
+<p>The existing execution package depends on Django, Python objects, and process-global registration. Rust consumers need a reusable, headless entry point before persistence and inference can be ported.</p>
+<h2 id="solution">Solution</h2>
+<p>Create an executable Rust foundation with stable typed contracts and one deterministic code-step example. It defines the vocabulary later phases implement without bringing in a desktop shell or an interpreter.</p>
+<h2 id="user-stories">User stories</h2>
+<ol>
+<li>As an application author, I want to run a code step from a Rust program, so that I can adopt the core without a UI.</li>
+<li>As a pipeline author, I want to separate bookkeeping from orchestration, so that workflow policy has one owner.</li>
+<li>As an agent author, I want to declare a result contract, so that invalid output cannot become a branch decision.</li>
+<li>As a tool author, I want to declare typed arguments and outcomes, so that calls can be checked before execution.</li>
+<li>As an operator, I want to supply explicit runtime configuration, so that startup does not depend on Django settings.</li>
+<li>As a consumer, I want to receive stable run and step identifiers, so that I can correlate later results.</li>
+<li>As a maintainer, I want to reject duplicate registrations at startup, so that dispatch is unambiguous.</li>
+<li>As a consumer, I want to receive classified errors, so that I can distinguish retryable failures from bad input.</li>
+<li>As a framework maintainer, I want to inject effects through supported capabilities, so that Modules stay composable.</li>
+<li>As a maintainer, I want to compile a separate consumer and inspect dependencies, so that the public package works without Python or Node.</li>
+</ol>
+<h2 id="implementation-decisions">Implementation decisions</h2>
+<ol>
+<li>Establish a Rust workspace for the new runtime in the FreedomAgentsRust module&#x27;s configured repository. Record the actual implementation root and source/framework revisions before code changes. Do not overwrite the existing Django repository or assume the supplied framework worktree is the new application&#x27;s repository.</li>
+<li>Use small Rust library boundaries for execution contracts, execution services, SQLite integration, provider integration, and Temporal hosting. Phase 1 implements only what its runnable example needs. The public core must not depend on Tauri, a webview, React, Python, or a JavaScript runtime.</li>
+<li>Define a PipelineRun as one requested workflow execution, a PipelineStep as one logical step occurrence, a StepAttempt as one physical execution attempt, and an AgentRun as one managed agent invocation. Step keys identify registered behavior; occurrence keys identify repeated use of that behavior within a run. A retry preserves occurrence identity.</li>
+<li>Use opaque UUID identities represented as canonical strings at serialized boundaries. Structured payloads are JSON values with a versioned envelope. Workflow entry and activity result contracts that require objects reject scalar roots and JSON encoded inside strings. Arbitrary ledger JSON remains possible.</li>
+<li>Expose asynchronous Rust execution as the primary interface. The standalone example owns its async runtime; library callers supply an existing runtime. Do not embed nested runtimes or reproduce Python synchronous/thread-spawning convenience behavior.</li>
+<li>Provide immutable startup registrations for pipeline definitions, code steps, tools, and agent configurations. Reject duplicate stable names and unresolved references before accepting work. Definitions carry explicit schema/behavior versions; no dotted-path imports, dynamic code loading, or user-supplied executable text.</li>
+<li>Separate a provider-turn contract, a tool-execution contract, and a pure agent-loop transition function. The same transition logic can be driven in memory in Phase 3 and from Temporal-recorded results in Phase 4. The loop itself performs no network, clock, random, or database calls.</li>
+<li>Define errors with a stable category, safe message, retryability, and optional internal cause. Categories include configuration, contract validation, provider, tool, persistence, timeout, cancellation, and conflict. Secrets are runtime-only; configuration snapshots store redacted settings and definition versions.</li>
+<li>Choose direct OpenAI Responses HTTP integration from Rust as the first provider, matching the existing direct-provider direction. Require an explicit model configuration; no claim of access to a particular model. CLI backends and additional providers are deferred. Rust schema generation and validation must reject unsupported constructs instead of weakening them.</li>
+<li>Agree on bounded object schemas for agent/tool contracts: fixed objects, nested objects, arrays, strings, finite numbers, booleans, enums, and explicit nullable fields. Reject recursion, arbitrary object keys, ambiguous unions, and unsupported constraints before inference. Exact schema normalization belongs to Phase 3.</li>
+<li>Keep framework-owned generated Models and generic execution request/result contracts distinct. A request DTO is not a handwritten copy of a generated entity. Background services receive supported Store/execution capabilities independently of GraphQL request context; any new host primitive needs its own executable proof.</li>
+</ol>
+<h2 id="testing-decisions">Testing decisions</h2>
+<ul>
+<li>Use the public Rust entry point from a separate minimal consumer to run a code step and assert typed output and stable error categories. This is the primary behavioral boundary.</li>
+<li>Round-trip public envelopes and reject wrong versions, scalar activity payloads, invalid configuration, duplicate keys, and unresolved registrations. Tests assert observable errors rather than private registry layout.</li>
+<li>Run Cargo build/test with Python and Node unavailable at runtime. Inspect resolved runtime dependencies for accidental desktop or interpreter dependencies.</li>
+<li>Prior art: current Agent construction, catalog validation, boot-gate, and public module-export tests. Port their intended behavior, not Python implementation details.</li>
+</ul>
+<p>Tests assert observable outcomes at the public Rust, workflow, or transport boundary. Do not mirror private helper implementations. These are delivery requirements; no runtime acceptance was executed while authoring this specification.</p>
+<h2 id="out-of-scope">Out of scope</h2>
+<p>Persistence, real inference, Temporal execution, GraphQL/MCP exposure, UI, database alternatives, Python API compatibility, and broad provider parity.</p>
+<h2 id="further-notes">Further notes</h2>
+<p>Depends on: none. Preserve the existing phase dependency edges. Implementation children refine this scope; they do not reopen the pure Rust/SQLite decision.</p>
+<p>The prior migration assessment and source-project vision informed this specification. Existing Python tests supply behavioral prior art, not a runtime dependency. The baseline checkouts contain uncommitted work; implementation must record integrated revisions and preserve unrelated edits.</p>
+<p>SPEC.md is authoritative; SPEC.html is its reviewable rendering. The full specification is also published on the Story. Any later change to a shared execution contract must update affected dependent specifications before their implementation.</p></main></body></html>

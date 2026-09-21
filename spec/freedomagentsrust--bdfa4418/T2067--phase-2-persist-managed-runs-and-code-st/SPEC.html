@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phase 2: Persist managed runs and code steps in SQLite</title><style>body{margin:0;background:#f4f2ed;color:#202825;font:17px/1.65 system-ui,sans-serif}main{max-width:900px;margin:32px auto;padding:40px 52px;background:#fff;border:1px solid #d6ddd6;border-radius:8px}h1{font-size:32px;line-height:1.22;letter-spacing:-.7px}h2{font-size:22px;margin-top:42px;padding-top:16px;border-top:1px solid #dce3dc}p,li{overflow-wrap:anywhere}li{margin:10px 0;padding-left:4px}a{color:#116149}nav{font-size:14px;display:flex;gap:20px;flex-wrap:wrap}ol,ul{padding-left:25px}.tag{font:700 12px/1.5 system-ui;letter-spacing:1px;text-transform:uppercase;color:#486b5a}@media(max-width:640px){main{margin:0;padding:22px;border:0}h1{font-size:27px}}@media print{body{background:white}main{border:0;margin:0;padding:0}nav{display:none}h2{break-after:avoid}li{break-inside:avoid}}</style></head><body><main><p class="tag">FreedomAgentsRust · CODING-2067 · Specification</p><nav aria-label="Document navigation"><a href="SPEC.md">Markdown source</a><a href="#implementation-decisions">Decisions</a><a href="#testing-decisions">Acceptance tests</a></nav><h1 id="phase-2-persist-managed-runs-and-code-steps-in-sqlite">Phase 2: Persist managed runs and code steps in SQLite</h1>
+<p>CODING-2067 · Implementation specification · 2026-09-21</p>
+<p>Pure Rust execution only. SQLite is the initial execution ledger; Temporal remains an external service with Rust workflows and activities. No Python or JavaScript execution workers, CLI inference backend, or product UI is required. Phase 5 is the core-working milestone. Later database backends, public multi-user hosting, and store synchronization are deferred.</p>
+<h2 id="problem-statement">Problem statement</h2>
+<p>Code steps need a durable execution ledger. The current ORM eagerly creates records and does not distinguish every logical step from its retry attempts, so a direct mechanical model translation would carry ambiguous recovery semantics into Rust.</p>
+<h2 id="solution">Solution</h2>
+<p>Persist managed runs, logical steps, attempts, agent invocations, and lineage in SQLite through generated SeaORM Models. A Rust consumer can execute code steps, restart, and inspect both successful and failed outcomes.</p>
+<h2 id="user-stories">User stories</h2>
+<ol>
+<li>As an operator, I want to reopen a store after restart, so that completed work remains inspectable.</li>
+<li>As a pipeline author, I want to record input and output for each step, so that I can explain the run.</li>
+<li>As a developer, I want to record preprocessing failures, so that a failed step does not remain pending.</li>
+<li>As a developer, I want to record postprocessing failures, so that invalid final output is not marked successful.</li>
+<li>As a workflow author, I want to separate attempts from logical steps, so that retries do not duplicate the pipeline graph.</li>
+<li>As a consumer, I want to retain UUID identities, so that references survive import and restart.</li>
+<li>As a pipeline author, I want to persist directed parent links, so that branch lineage remains visible.</li>
+<li>As an operator, I want to receive bounded database contention errors, so that workers do not hang indefinitely.</li>
+<li>As a maintainer, I want to apply and reverse migrations, so that schema changes are reviewable.</li>
+<li>As an API author, I want to protect runtime-owned outcomes, so that callers cannot fabricate success.</li>
+</ol>
+<h2 id="implementation-decisions">Implementation decisions</h2>
+<ol>
+<li>Keep all execution ledger tables in one framework Module. Add PipelineRun, PipelineStep, StepAttempt, AgentRun, and a directed step-parent join Model. Additional audit Models are introduced by the phases that need them, through forward reversible migrations.</li>
+<li>Store UUIDs in a canonical, indexed representation verified through generation. Preserve JSON null separately from an absent/unset outcome, validate JSON values on read/write, and use UTC timestamps with one documented representation. Do not expose SQLite rowids as public identities.</li>
+<li>PipelineRun carries pipeline/definition version, root payload, context, request identity, workflow identity, lifecycle revision, timestamps, and terminal outcome. PipelineStep carries run, registered key, occurrence key, order metadata, state, input/output, and parent relations. Order metadata is observational rather than an implicit execution scheduler.</li>
+<li>Enforce uniqueness for a run&#x27;s request key, a logical step&#x27;s occurrence key within its run, and an attempt number within a logical step. AgentRun identifies the managed invocation; link an attempt to that invocation without treating every provider turn as another logical step.</li>
+<li>Use PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED, and WAITING_FOR_INPUT for run/step lifecycle where applicable. Attempts use PENDING, RUNNING, SUCCEEDED, FAILED, or CANCELLED. A failed retryable attempt does not by itself fail the logical step. Phase 5 implements waiting/resume policy; reserve its contract now.</li>
+<li>Record preprocessing, execution, and postprocessing within the tracked attempt lifecycle. Only successfully validated postprocessed output can commit success. Store safe classified errors and terminal timestamps on failure. Failed setup before an accepted run creates no misleading success record.</li>
+<li>Terminal commits use an expected revision/attempt identity. Repeated identical completion is idempotent; conflicting or stale completion is rejected. Never let a late attempt overwrite a newer outcome. Only runtime lifecycle services may mutate status/output.</li>
+<li>Validate that parent IDs exist in the same run and reject self-links and cycles. Preserve run-to-step cascade and nullable agent references deliberately; normal runtime APIs do not expose deletion of execution history. Tests document explicit maintenance deletion behavior.</li>
+<li>Use short transactions for related ledger writes. No network call, tool action, or wait holds a SQLite write transaction. Enable foreign keys and use WAL for file stores, with a bounded busy timeout and a documented capped retry policy for safe transactions.</li>
+<li>Generated entities remain authoritative. Expose the minimum supported Store vocabulary needed by background services through the framework boundary; document any necessary repository/write exception rather than bypassing generation. Configure only SQLite now.</li>
+<li>Persist request/workflow identity now, but do not claim atomic remote workflow start in this phase. Phase 5 adds durable dispatch intent and reconciliation. File stores belong to one local host deployment; shared network filesystems and multi-host writers are unsupported.</li>
+</ol>
+<h2 id="testing-decisions">Testing decisions</h2>
+<ul>
+<li>Run a two-code-step pipeline through the public service against a temporary file database, close it, reopen it, and inspect output, attempts, and lineage.</li>
+<li>Exercise preprocessing/execution/postprocessing failures, duplicate start/attempt identifiers, idempotent completion, stale completion, wrong-run parents, and cycle rejection.</li>
+<li>Run real SQLite migration up/down, fresh generation, UUID/JSON/null/time round trips, foreign-key deletion rules, and bounded two-connection contention tests.</li>
+<li>Prior art: existing model and pipeline integration tests, standalone migration-graph checks, and the target framework&#x27;s real migrated-store tests. Assert persisted behavior, not generated source text.</li>
+</ul>
+<p>Tests assert observable outcomes at the public Rust, workflow, or transport boundary. Do not mirror private helper implementations. These are delivery requirements; no runtime acceptance was executed while authoring this specification.</p>
+<h2 id="out-of-scope">Out of scope</h2>
+<p>Provider inference, remote dispatch guarantees, automatic recovery policy, SQL backend portability work, arbitrary CRUD over runtime state, and UI.</p>
+<h2 id="further-notes">Further notes</h2>
+<p>Depends on: CODING-2066. Preserve the existing phase dependency edges. Implementation children refine this scope; they do not reopen the pure Rust/SQLite decision.</p>
+<p>The prior migration assessment and source-project vision informed this specification. Existing Python tests supply behavioral prior art, not a runtime dependency. The baseline checkouts contain uncommitted work; implementation must record integrated revisions and preserve unrelated edits.</p>
+<p>SPEC.md is authoritative; SPEC.html is its reviewable rendering. The full specification is also published on the Story. Any later change to a shared execution contract must update affected dependent specifications before their implementation.</p></main></body></html>

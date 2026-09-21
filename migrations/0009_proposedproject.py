@@ -3,14 +3,14 @@
 from django.db import migrations, models
 import django.db.models.deletion
 import uuid
+from django.apps import apps
 
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('transcripts', '0001_initial'),
-        ('agents', '0008_remove_syncedtask_module_remove_syncedtask_project_and_more'),
-    ]
+    dependencies = [('agents', '0008_remove_syncedtask_module_remove_syncedtask_project_and_more')]
+    if any(config.label == 'transcripts' for config in apps.get_app_configs()):
+        dependencies.insert(0, ('transcripts', '0001_initial'))
 
     operations = [
         migrations.CreateModel(

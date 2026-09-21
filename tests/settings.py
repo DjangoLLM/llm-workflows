@@ -52,12 +52,6 @@ DATABASES = {
     "default": dj_database_url.parse(DATABASE_URL, conn_max_age=0),
 }
 
-# The historical agents migrations reference legacy app dependencies that are out
-# of scope for this harness. Use model-state table creation for isolated tests.
-MIGRATION_MODULES = {
-    "agents": None,
-}
-
 # Keep tests isolated from project-specific registration side effects.
 AGENTS_STEP_REGISTRARS: list[str] = []
 AGENTS_TEMPORAL_PLUGIN_MODULES: list[str] = []

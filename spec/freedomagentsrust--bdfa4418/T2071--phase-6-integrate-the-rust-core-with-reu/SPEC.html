@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phase 6: Integrate the Rust core with reusable Apps, GraphQL, and MCP</title><style>body{margin:0;background:#f4f2ed;color:#202825;font:17px/1.65 system-ui,sans-serif}main{max-width:900px;margin:32px auto;padding:40px 52px;background:#fff;border:1px solid #d6ddd6;border-radius:8px}h1{font-size:32px;line-height:1.22;letter-spacing:-.7px}h2{font-size:22px;margin-top:42px;padding-top:16px;border-top:1px solid #dce3dc}p,li{overflow-wrap:anywhere}li{margin:10px 0;padding-left:4px}a{color:#116149}nav{font-size:14px;display:flex;gap:20px;flex-wrap:wrap}ol,ul{padding-left:25px}.tag{font:700 12px/1.5 system-ui;letter-spacing:1px;text-transform:uppercase;color:#486b5a}@media(max-width:640px){main{margin:0;padding:22px;border:0}h1{font-size:27px}}@media print{body{background:white}main{border:0;margin:0;padding:0}nav{display:none}h2{break-after:avoid}li{break-inside:avoid}}</style></head><body><main><p class="tag">FreedomAgentsRust · CODING-2071 · Specification</p><nav aria-label="Document navigation"><a href="SPEC.md">Markdown source</a><a href="#implementation-decisions">Decisions</a><a href="#testing-decisions">Acceptance tests</a></nav><h1 id="phase-6-integrate-the-rust-core-with-reusable-apps-graphql-and-mcp">Phase 6: Integrate the Rust core with reusable Apps, GraphQL, and MCP</h1>
+<p>CODING-2071 · Implementation specification · 2026-09-21</p>
+<p>Pure Rust execution only. SQLite is the initial execution ledger; Temporal remains an external service with Rust workflows and activities. No Python or JavaScript execution workers, CLI inference backend, or product UI is required. Phase 5 is the core-working milestone. Later database backends, public multi-user hosting, and store synchronization are deferred.</p>
+<h2 id="problem-statement">Problem statement</h2>
+<p>The proven core is not yet available to composed framework Apps or external clients. Current Module capabilities do not expose background execution, and process-local subscription notifications cannot recover missed worker events.</p>
+<h2 id="solution">Solution</h2>
+<p>Install the core as a reusable App, compose its runtime registrations, expose protected GraphQL commands/read models, and serve permitted tools over Rust MCP. Keep all execution headless and preserve the framework&#x27;s generation boundary.</p>
+<h2 id="user-stories">User stories</h2>
+<ol>
+<li>As an App author, I want to contribute steps and tools through the supported framework, so that I do not bypass module rules.</li>
+<li>As an Project author, I want to install two contributing Apps, so that worker and API see the same catalog.</li>
+<li>As a client author, I want to use generated GraphQL reads, so that contracts match persisted models.</li>
+<li>As a caller, I want to start and control a run through explicit commands, so that I cannot corrupt lifecycle state.</li>
+<li>As a subscriber, I want to receive separate-worker changes, so that live views follow committed work.</li>
+<li>As a subscriber, I want to resume from a cursor, so that disconnects do not hide completed work.</li>
+<li>As an MCP client, I want to discover permitted Rust tools, so that I can invoke the same contracts.</li>
+<li>As a tool owner, I want to keep private tools unexposed, so that registration does not imply public access.</li>
+<li>As an operator, I want to stop transports cleanly, so that subscriptions and tool tasks release resources.</li>
+<li>As a maintainer, I want to test web and desktop Rust transports, so that integration does not require a new product UI.</li>
+</ol>
+<h2 id="implementation-decisions">Implementation decisions</h2>
+<ol>
+<li>Create one reusable execution App with the ledger Module and optional transport contributions. Use the framework&#x27;s generated App/Module registries. The API host and worker consume the same resolved installation identity and definition versions.</li>
+<li>Extend the supported module-host vocabulary with typed execution registration and command handles. The host provides concrete Rust implementations. Modules continue to name only sanctioned crate roots; no arbitrary Temporal/HTTP imports or dependency-allowlist widening as a shortcut.</li>
+<li>Prove contributions from two fixture Apps at generation/startup, including duplicate names, missing definitions, source relocation, and mismatched catalog versions. Composing Apps must not require a Module to reference another Module&#x27;s entity types.</li>
+<li>Retain generated ledger reads with pagination/filtering where safe. Suppress public generated mutations for runtime-owned ledger Models using supported write-selection and a documented exception; clients use explicit start/cancel/retry/reconsider/resolve commands carrying stable request IDs and expected revisions.</li>
+<li>Expose only the minimum client-visible error categories and redacted configuration. Credentials never enter entities or the schema. Execution payloads remain sensitive local data; public/shared deployment and authorization are deferred, so the HTTP listener remains loopback-only.</li>
+<li>Add an append-only change record with a monotonic cursor in the same transaction as each accepted lifecycle mutation. A Rust local notification channel wakes the API host after commit; the API reads the durable change log to recover gaps. Notification loss cannot erase a committed change.</li>
+<li>Expose a versioned snapshot and changes-after-cursor protocol. Establish the subscription before snapshot delivery and drain committed changes beyond the snapshot watermark without a race. Clients deduplicate by cursor/revision. An expired cursor yields an explicit snapshot-required result rather than silently skipping data.</li>
+<li>Support a separate local worker through authenticated local IPC or a same-host owned channel, with connection/reconnect catch-up. No client polling or focus-refetch loop is the live strategy. Background change-log delivery/reconciliation is allowed and must be bounded and testable.</li>
+<li>Serve MCP from a Rust executable over STDIO initially, using the shared tool registry and validators. Advertise only explicitly MCP-exposed tools; reject invalid arguments before invocation and return protocol-appropriate tool failures. Framework run controls are not automatically exposed as arbitrary tools.</li>
+<li>MCP direct calls to mutating tools require an explicit invocation key and the same durable effect service/policy as the core; unsafe direct invocation is rejected. Discovery must not expand agent tool authorization. HTTP/SSE MCP parity is deferred from this initial release.</li>
+<li>Verify the same GraphQL behavior through headless HTTP/WebSocket and Tauri Rust transport boundaries. Generated TypeScript contract checks may run as development checks, but no JavaScript execution worker or React screen is part of this delivery.</li>
+</ol>
+<h2 id="testing-decisions">Testing decisions</h2>
+<ul>
+<li>Install two fixture Apps in a clean consumer Project, generate contracts, and use public commands to execute a real core workflow. Assert catalog agreement and rejection of invalid contributions.</li>
+<li>Probe generated schema and runtime behavior to ensure arbitrary create/update/delete cannot fabricate run outcomes; exercise command idempotency and stale revision rejection.</li>
+<li>Run separate worker/host processes, interrupt notifications and subscriptions, then verify snapshot/cursor catch-up without gaps or duplicates in client state. Include a reconnect during snapshot acquisition.</li>
+<li>Drive actual MCP initialization/list/call over STDIO, schema/argument checks, exposure filtering, structured failure, mutation-key enforcement, and cleanup on disconnect.</li>
+<li>Run target generation/drift/seal verification and both Rust transport suites. Prior art: composed-schema custom operation tests, live subscription tests, and existing MCP adapter/server behavior.</li>
+</ul>
+<p>Tests assert observable outcomes at the public Rust, workflow, or transport boundary. Do not mirror private helper implementations. These are delivery requirements; no runtime acceptance was executed while authoring this specification.</p>
+<h2 id="out-of-scope">Out of scope</h2>
+<p>React operator UI, public HTTP hosting/authentication, cross-device store synchronization, remote SQLite workers, HTTP/SSE MCP, and automatic exposure of every framework control.</p>
+<h2 id="further-notes">Further notes</h2>
+<p>Depends on: CODING-2070. Preserve the existing phase dependency edges. Implementation children refine this scope; they do not reopen the pure Rust/SQLite decision.</p>
+<p>The prior migration assessment and source-project vision informed this specification. Existing Python tests supply behavioral prior art, not a runtime dependency. The baseline checkouts contain uncommitted work; implementation must record integrated revisions and preserve unrelated edits.</p>
+<p>SPEC.md is authoritative; SPEC.html is its reviewable rendering. The full specification is also published on the Story. Any later change to a shared execution contract must update affected dependent specifications before their implementation.</p></main></body></html>
