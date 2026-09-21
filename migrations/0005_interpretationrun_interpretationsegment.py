@@ -3,14 +3,14 @@
 from django.db import migrations, models
 import django.db.models.deletion
 import uuid
+from django.apps import apps
 
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('transcripts', '0001_initial'),
-        ('agents', '0004_pipelinestep_parents'),
-    ]
+    dependencies = [('agents', '0004_pipelinestep_parents')]
+    if any(config.label == 'transcripts' for config in apps.get_app_configs()):
+        dependencies.insert(0, ('transcripts', '0001_initial'))
 
     operations = [
         migrations.CreateModel(

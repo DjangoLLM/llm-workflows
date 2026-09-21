@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import inspect
+import asyncio
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agents.core.tools import ToolExecutionError, ToolRegistry
 from agents.core.tools.mcp.adapter import build_tool_adapter
@@ -18,33 +18,59 @@ def echo_tool():
     return registry.resolve_toolset("echo")[0]
 
 
-def test_adapter_signature_mirrors_input_model_keys(echo_tool):
-    adapter = build_tool_adapter(echo_tool)
-    sig = adapter.__signature__
-    assert list(sig.parameters.keys()) == list(
-        echo_tool.input_model.model_fields.keys()
-    )
-
-
-def test_adapter_signature_annotations_match_input_model_fields(echo_tool):
-    adapter = build_tool_adapter(echo_tool)
-    for field_name, field_info in echo_tool.input_model.model_fields.items():
-        assert (
-            adapter.__signature__.parameters[field_name].annotation
-            is field_info.annotation
+def test_adapter_exposes_input_model_schema():
+    class _SchemaInput(BaseModel):
+        model_config = ConfigDict(
+            title="Constrained input",
+            extra="forbid",
+            json_schema_extra={"x-model": "preserved"},
         )
 
+        count: int = Field(ge=1, description="Positive count")
+        tags: list[str] = Field(default_factory=list, description="Optional tags")
+        label: str = Field(
+            "default",
+            alias="displayLabel",
+            description="Display label",
+        )
 
-def test_adapter_parameters_are_keyword_only(echo_tool):
+    class _Out(BaseModel):
+        result: int
+
+    def bound(input: _SchemaInput) -> _Out:
+        return _Out(result=input.count + len(input.tags))
+
+    from agents.core.tools.contracts import Tool
+
+    adapter = build_tool_adapter(
+        Tool(
+            name="constrained",
+            input_model=_SchemaInput,
+            output_model=_Out,
+            mcp_safe=True,
+            toolset_name="tests",
+            bound_method=bound,
+        )
+    )
+
+    schema = adapter.parameters
+
+    assert schema == _SchemaInput.model_json_schema()
+    assert schema["properties"]["count"]["minimum"] == 1
+    assert schema["properties"]["count"]["description"] == "Positive count"
+    assert schema["properties"]["tags"]["description"] == "Optional tags"
+    assert schema["properties"]["displayLabel"]["default"] == "default"
+    assert schema["required"] == ["count"]
+    assert schema["additionalProperties"] is False
+    assert schema["x-model"] == "preserved"
+
+    result = asyncio.run(adapter.run({"count": 1, "displayLabel": "custom"}))
+    assert result.structured_content == {"result": 1}
+
+
+def test_adapter_required_parameter_is_in_schema(echo_tool):
     adapter = build_tool_adapter(echo_tool)
-    for p in adapter.__signature__.parameters.values():
-        assert p.kind is inspect.Parameter.KEYWORD_ONLY
-
-
-def test_adapter_required_parameter_has_no_default(echo_tool):
-    adapter = build_tool_adapter(echo_tool)
-    text_param = adapter.__signature__.parameters["text"]
-    assert text_param.default is inspect.Parameter.empty
+    assert adapter.parameters["required"] == ["text"]
 
 
 def test_adapter_optional_field_has_default():
@@ -69,13 +95,13 @@ def test_adapter_optional_field_has_default():
         bound_method=bound,
     )
     adapter = build_tool_adapter(tool)
-    assert adapter.__signature__.parameters["text"].default is inspect.Parameter.empty
-    assert adapter.__signature__.parameters["suffix"].default == "!"
+    assert adapter.parameters["required"] == ["text"]
+    assert adapter.parameters["properties"]["suffix"]["default"] == "!"
 
 
 def test_adapter_returns_model_dump_dict(echo_tool):
     adapter = build_tool_adapter(echo_tool)
-    out = adapter(text="hi")
+    out = adapter.fn(text="hi")
     assert isinstance(out, dict)
     assert out == {"result": "hi"}
 
@@ -83,7 +109,7 @@ def test_adapter_returns_model_dump_dict(echo_tool):
 def test_adapter_validates_kwargs(echo_tool):
     adapter = build_tool_adapter(echo_tool)
     with pytest.raises(ValidationError):
-        adapter()  # missing required `text`
+        adapter.fn()  # missing required `text`
 
 
 def test_adapter_propagates_tool_execution_error_unchanged():
@@ -92,7 +118,7 @@ def test_adapter_propagates_tool_execution_error_unchanged():
     [tool] = registry.resolve_toolset("failing")
     adapter = build_tool_adapter(tool)
     with pytest.raises(ToolExecutionError) as excinfo:
-        adapter(text="hi")
+        adapter.fn(text="hi")
     err = excinfo.value
     assert err.tool_name == "boom"
     assert err.provider_status == 503
@@ -101,20 +127,21 @@ def test_adapter_propagates_tool_execution_error_unchanged():
 
 def test_adapter_name_and_qualname(echo_tool):
     adapter = build_tool_adapter(echo_tool)
-    assert adapter.__name__ == "echo"
-    assert adapter.__qualname__ == "echo"
+    assert adapter.name == "echo"
+    assert adapter.fn.__name__ == "echo"
+    assert adapter.fn.__qualname__ == "echo"
 
 
-def test_adapter_return_annotation_is_dict(echo_tool):
+def test_adapter_keeps_dict_output_untyped(echo_tool):
     adapter = build_tool_adapter(echo_tool)
-    assert adapter.__signature__.return_annotation is dict
+    assert adapter.output_schema is None
 
 
 def test_adapter_returns_json_dumpable(echo_tool):
     import json
 
     adapter = build_tool_adapter(echo_tool)
-    json.dumps(adapter(text="hi"))
+    json.dumps(adapter.fn(text="hi"))
 
 
 def test_adapter_output_is_model_dump_json_mode():
@@ -143,5 +170,5 @@ def test_adapter_output_is_model_dump_json_mode():
         bound_method=bound,
     )
     adapter = build_tool_adapter(tool)
-    out = adapter(text="ignored")
+    out = adapter.fn(text="ignored")
     assert out["ident"] == str(sentinel)

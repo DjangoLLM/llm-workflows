@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phase 7: Port a Rust consumer and rehearse data and workflow cutover</title><style>body{margin:0;background:#f4f2ed;color:#202825;font:17px/1.65 system-ui,sans-serif}main{max-width:900px;margin:32px auto;padding:40px 52px;background:#fff;border:1px solid #d6ddd6;border-radius:8px}h1{font-size:32px;line-height:1.22;letter-spacing:-.7px}h2{font-size:22px;margin-top:42px;padding-top:16px;border-top:1px solid #dce3dc}p,li{overflow-wrap:anywhere}li{margin:10px 0;padding-left:4px}a{color:#116149}nav{font-size:14px;display:flex;gap:20px;flex-wrap:wrap}ol,ul{padding-left:25px}.tag{font:700 12px/1.5 system-ui;letter-spacing:1px;text-transform:uppercase;color:#486b5a}@media(max-width:640px){main{margin:0;padding:22px;border:0}h1{font-size:27px}}@media print{body{background:white}main{border:0;margin:0;padding:0}nav{display:none}h2{break-after:avoid}li{break-inside:avoid}}</style></head><body><main><p class="tag">FreedomAgentsRust · CODING-2072 · Specification</p><nav aria-label="Document navigation"><a href="SPEC.md">Markdown source</a><a href="#implementation-decisions">Decisions</a><a href="#testing-decisions">Acceptance tests</a></nav><h1 id="phase-7-port-a-rust-consumer-and-rehearse-data-and-workflow-cutover">Phase 7: Port a Rust consumer and rehearse data and workflow cutover</h1>
+<p>CODING-2072 · Implementation specification · 2026-09-21</p>
+<p>Pure Rust execution only. SQLite is the initial execution ledger; Temporal remains an external service with Rust workflows and activities. No Python or JavaScript execution workers, CLI inference backend, or product UI is required. Phase 5 is the core-working milestone. Later database backends, public multi-user hosting, and store synchronization are deferred.</p>
+<h2 id="problem-statement">Problem statement</h2>
+<p>A reusable runtime needs evidence from a real consumer, and a new SQLite ledger must not lose existing execution history. Copying tables does not transfer Temporal workflow history or safely redirect in-flight work.</p>
+<h2 id="solution">Solution</h2>
+<p>Port a bounded research-tool consumer to Rust and rehearse a versioned historical import plus new-work cutover. Keep legacy deployments separate while proving the new runtime has no Python dependency.</p>
+<h2 id="user-stories">User stories</h2>
+<ol>
+<li>As a consumer author, I want to run an existing research tool from Rust, so that the new contracts solve a real integration.</li>
+<li>As an operator, I want to validate an import before writing, so that bad snapshots cannot corrupt the ledger.</li>
+<li>As an operator, I want to preserve historical UUIDs and lineage, so that old references still resolve.</li>
+<li>As an operator, I want to resume an interrupted import, so that migration does not require starting over.</li>
+<li>As a reviewer, I want to compare source and target records, so that data loss is visible.</li>
+<li>As an operator, I want to separate historical runs from live scheduling, so that import cannot restart completed work.</li>
+<li>As an operator, I want to route new work to versioned Rust workflows, so that legacy histories do not reach incompatible code.</li>
+<li>As an operator, I want to let legacy work drain separately, so that the new runtime remains Python-free.</li>
+<li>As an operator, I want to rehearse rollback after new writes, so that rollback does not silently discard progress.</li>
+<li>As a maintainer, I want to use Rust migration tools, so that cutover does not add a Python bridge.</li>
+</ol>
+<h2 id="implementation-decisions">Implementation decisions</h2>
+<ol>
+<li>Use the existing research consumer&#x27;s scrape-URL behavior as the bounded real integration. Port its typed input/output and one configured HTTP provider adapter to Rust, with a code validation step and a typed agent summary step. Do not port the complete Plane or research application.</li>
+<li>Preserve the selected consumer&#x27;s documented request validation and safe provider errors. The native workflow must run through installed App contributions, the core ledger, and the Phase 6 command contract. The consumer provider is independently configured; no Python service performs the call.</li>
+<li>Define a versioned JSON Lines snapshot containing a manifest and typed records for runs, logical steps, agent runs, and parent links. Include source identity/revision, snapshot ID, record counts, and content checksums. Accept a documented raw export or provide a Rust reader/exporter for the actual legacy database only after its schema is identified.</li>
+<li>Never require Django or Python to execute the migration tool. If the production source schema/export is unavailable, deliver fixture-based tooling and mark live-source rehearsal incomplete. Do not infer production mappings solely from old migration filenames.</li>
+<li>Validate all records and references in a staging area before promoting a snapshot. Reject duplicate/conflicting UUIDs, malformed JSON, unknown required statuses, missing parents, cycles, invalid timestamps, and incompatible schema versions with a record-level report.</li>
+<li>Preserve source UUIDs and source fields faithfully, with an explicit source-to-target mapping. Historical records missing attempt information remain marked imported/unknown rather than inventing retry history. Imported runs are read-only historical entries and never create dispatch intent.</li>
+<li>Resume import by snapshot/checksum and checkpoint; retrying byte-identical input is idempotent. A changed record under an already-imported snapshot or conflicting existing live UUID fails. Commit visibility only after full integrity validation, or atomically mark the import incomplete so it is excluded from normal completed-history reads.</li>
+<li>Verify counts by record type/status, canonical payload hashes, timestamps, and relationship membership. Record any intentionally unmapped legacy fields in a report. Do not silently coerce scalar payloads into objects when history permits arbitrary JSON.</li>
+<li>Cutover routes only new work to versioned Rust workflow types/queues. Existing Python workflows stay on their old deployment until drained; neither their workers nor their runtime become a dependency of FreedomAgentsRust. Any proposed history takeover requires separate replay proof and authorization.</li>
+<li>Rehearse a freeze/snapshot/import/switch sequence and a rollback sequence with new Rust writes. Rollback stops new submissions, preserves the Rust store/history, and resolves in-flight effects before routing elsewhere. Reverting binaries alone does not undo external work.</li>
+<li>Production destructive actions and live cutover are not authorized by this specification. Provide runnable rehearsals and an operator procedure. Retain SQLite for target persistence.</li>
+</ol>
+<h2 id="testing-decisions">Testing decisions</h2>
+<ul>
+<li>Run the ported scrape consumer against a controlled HTTP service through the public Rust workflow/API. Exercise successful retrieval/typed summary, invalid URL, provider failure, and tool schema compatibility.</li>
+<li>Import fixtures with nested/scalar/null history payloads, successful/failed runs, parent links, and missing legacy attempt metadata; compare counts and canonical records after reopening SQLite.</li>
+<li>Crash/retry import, alter a checkpointed snapshot, introduce UUID conflicts and broken references, and prove failure does not publish partial completed history.</li>
+<li>Rehearse new-work routing and rollback with a fake external effect ledger, keeping imported history inert. Live source/provider validation is recorded separately when accessible.</li>
+<li>Prior art: existing research tool provider tests, source migration-graph tests, and target upgrade/relocation tests.</li>
+</ul>
+<p>Tests assert observable outcomes at the public Rust, workflow, or transport boundary. Do not mirror private helper implementations. These are delivery requirements; no runtime acceptance was executed while authoring this specification.</p>
+<h2 id="out-of-scope">Out of scope</h2>
+<p>All consumer applications, Python adapters, new database backend, destructive production migration, unproven history takeover, and comprehensive provider parity.</p>
+<h2 id="further-notes">Further notes</h2>
+<p>Depends on: CODING-2071. Preserve the existing phase dependency edges. Implementation children refine this scope; they do not reopen the pure Rust/SQLite decision.</p>
+<p>The prior migration assessment and source-project vision informed this specification. Existing Python tests supply behavioral prior art, not a runtime dependency. The baseline checkouts contain uncommitted work; implementation must record integrated revisions and preserve unrelated edits.</p>
+<p>SPEC.md is authoritative; SPEC.html is its reviewable rendering. The full specification is also published on the Story. Any later change to a shared execution contract must update affected dependent specifications before their implementation.</p></main></body></html>
