@@ -3,6 +3,7 @@ from typing import Callable, Dict
 
 from temporalio import activity
 
+from agents.core.jev_if import JevIf
 from agents.core.pipeline_structure import PipelineRegistry
 from agents.core.step_catalog import StepCatalog
 
@@ -111,6 +112,16 @@ def get_registered_step_activities() -> list[Callable[..., dict]]:
     for step_key in StepCatalog.list_step_keys():
         activities.append(transform_step_to_activity(step_key))
     return activities
+
+
+# ==============================================================================
+# JevIf (standalone two-way decision)
+# ==============================================================================
+
+@activity.defn(name="agents.jev_if_activity")
+def jev_if_activity(condition: str, state: dict, model: str | None = None, label: str = "jev_if") -> dict:
+    """Ask Jev whether ``condition`` holds for ``state``; the workflow branches on ``result``."""
+    return JevIf(condition, model=model, label=label).decide(state)
 
 
 @activity.defn(name="agents.mark_pipeline_success_activity")

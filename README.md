@@ -140,10 +140,26 @@ A `PipelineStep` is a single unit of execution in your workflow. Steps can be:
 - **LLM Steps**: Backed by a `ManagedAgent`. You just provide an `AgentConfig`, and the step handles the LLM execution automatically.
 Every time a step runs, a `PipelineStepModel` database record is created to track its inputs and outputs.
 
-### 3. `Pipeline`
+### 3. `JevIf`
+A standalone two-way decision made by Jev. It is not a `PipelineStep` and needs no `PipelineRun`; each decision is ledgered as an `AgentRun`. Workflows call it through the `agents.jev_if_activity` activity and branch on `result`. Jev supplies the judgement, Temporal owns the branch.
+
+```python
+# in a Temporal workflow
+verdict = await workflow.execute_activity(
+    "agents.jev_if_activity",
+    args=["The segment refers to a tracked task.", {"segment_text": text}],
+    start_to_close_timeout=timedelta(seconds=30),
+)
+if verdict["result"]:
+    ...
+```
+
+Output is `{"result": bool, "confidence": float, "probabilities": {"true": p, "false": q}}`. Requires `TYPESAFE_API_KEY`. For more than two outcomes use a Jev `AgentConfig` with your own `questions` criteria.
+
+### 4. `Pipeline`
 A `Pipeline` groups your `PipelineStep`s together. However, the `Pipeline` class itself does **not** contain orchestration logic (it does not contain a loop to move from step 1 to step 2). It acts purely as a bookkeeping tool, creating a `PipelineRun` database record to tie the step executions together.
 
-### 4. Temporal (The Orchestrator)
+### 5. Temporal (The Orchestrator)
 Because `Pipeline` only handles database bookkeeping, an external orchestrator is required to actually transition from one step to the next. **Temporal is the only documented and supported workflow execution path for this package.** The Temporal workflow handles the execution order, retries, timeouts, and failure handling, calling the pipeline steps as Temporal Activities.
 
 ---

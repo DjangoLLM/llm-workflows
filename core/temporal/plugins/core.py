@@ -7,6 +7,7 @@ from agents.core.temporal.activities import (
     get_registered_step_activities,
     handle_meeting_notes_activity,
     handle_random_brain_dump_activity,
+    jev_if_activity,
     mark_pipeline_failed_activity,
     mark_pipeline_success_activity,
     execute_pipeline_step_activity,
@@ -31,6 +32,10 @@ def get_temporal_worker_plugin() -> TemporalWorkerPlugin:
         TemporalActivityRegistration(
             activity_name="agents.execute_pipeline_step_activity",
             activity_callable=execute_pipeline_step_activity,
+        ),
+        TemporalActivityRegistration(
+            activity_name="agents.jev_if_activity",
+            activity_callable=jev_if_activity,
         ),
         TemporalActivityRegistration(
             activity_name="agents.handle_meeting_notes_activity",
