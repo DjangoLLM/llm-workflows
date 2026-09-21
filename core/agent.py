@@ -52,7 +52,7 @@ class AgentConfig:
     """Configuration inputs for constructing a Pydantic AI agent."""
     instructions: str
     # Declares which execution path this config targets; validated in __post_init__.
-    execution_backend: Literal["pydantic_ai", "pi_worker", "codex_cli"] = "pydantic_ai"
+    execution_backend: Literal["pydantic_ai", "codex_cli"] = "pydantic_ai"
     model: OpenAIChatModel | OpenAIResponsesModel | str | None = None
     settings: OpenAIResponsesModelSettings | None = None
     result_type: type[Any] | None = None
@@ -61,7 +61,7 @@ class AgentConfig:
     extra_kwargs: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        _valid_backends = frozenset({"pydantic_ai", "pi_worker", "codex_cli"})
+        _valid_backends = frozenset({"pydantic_ai", "codex_cli"})
         if self.execution_backend not in _valid_backends:
             raise ValueError(
                 f"execution_backend must be one of {sorted(_valid_backends)!r}; "
@@ -109,46 +109,17 @@ class Agent:
             self._runner = self._pydantic_agent
 
     def _create_pydantic_agent(self, config: AgentConfig) -> PydanticAgent:
-        """Construct a configured `pydantic_ai.Agent` instance.
-
-        Both `pydantic_ai` and `pi_worker` backends share the entire agent
-        graph; they differ only in which `pydantic_ai.models.Model` instance
-        drives inference.
-        """
-        if config.execution_backend == "pi_worker":
-            from agents.core.tools.mcp.pi_model import PiWorkerModel
-
-            extra = dict(config.extra_kwargs or {})
-            provider = extra.pop("provider", "openai")
-            model_name = (
-                str(config.model)
-                if config.model is not None
-                else extra.pop("model_name", "gpt-4o-mini")
-            )
-            task_queue = extra.pop("pi_worker_task_queue", None)
-            activity_timeout = int(extra.pop("pi_worker_activity_timeout_seconds", 60))
-            temporal_client_factory = extra.pop("pi_worker_temporal_client_factory", None)
-            model = PiWorkerModel(
-                provider=provider,
-                model_name=model_name,
-                task_queue=task_queue,
-                activity_timeout_seconds=activity_timeout,
-                temporal_client_factory=temporal_client_factory,
-            )
-            model_settings = None
-            config_extra_kwargs: Mapping[str, Any] | None = extra or None
-        else:
-            model = config.model
-            if isinstance(model, str):
-                model = OpenAIResponsesModel(model)
-            elif model is None:
-                model = OpenAIResponsesModel('gpt-5-mini')
-            model_settings = (
-                config.settings
-                if config.settings
-                else OpenAIResponsesModelSettings(openai_reasoning_effort='none')
-            )
-            config_extra_kwargs = config.extra_kwargs
+        """Construct a configured `pydantic_ai.Agent` instance."""
+        model = config.model
+        if isinstance(model, str):
+            model = OpenAIResponsesModel(model)
+        elif model is None:
+            model = OpenAIResponsesModel('gpt-5-mini')
+        model_settings = (
+            config.settings
+            if config.settings
+            else OpenAIResponsesModelSettings(openai_reasoning_effort='none')
+        )
 
         all_tools: list[Callable[..., Any]] = list(config.tools or [])
 
@@ -164,12 +135,10 @@ class Agent:
             agent_kwargs["output_type"] = config.result_type
         if all_tools:
             agent_kwargs["tools"] = all_tools
-        if config_extra_kwargs:
-            agent_kwargs.update(config_extra_kwargs)
+        if config.extra_kwargs:
+            agent_kwargs.update(config.extra_kwargs)
 
-        if model_settings is not None:
-            return PydanticAgent(model=model, model_settings=model_settings, **agent_kwargs)
-        return PydanticAgent(model=model, **agent_kwargs)
+        return PydanticAgent(model=model, model_settings=model_settings, **agent_kwargs)
 
     async def run(self, input_payload: Optional[Dict[str, Any]] = None) -> Any:
         """Execute without persistence (async); returns pydantic_ai run result."""

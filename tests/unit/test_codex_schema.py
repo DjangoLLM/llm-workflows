@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import pytest
 from pydantic import (
@@ -46,6 +46,12 @@ class _SupportedResult(BaseModel):
     detail: _Detail
     note: str | None = None
     empty: None
+
+
+class _LiteralResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    marker: Literal["codex-live-ok"]
 
 
 def _walk_schema(value: object):
@@ -99,6 +105,15 @@ def test_build_schema_supports_bounded_fixed_models() -> None:
             assert "title" not in item
             assert "description" not in item
             assert "default" not in item
+
+
+def test_build_schema_normalizes_single_literal_to_enum() -> None:
+    schema = build_codex_output_schema(_LiteralResult)
+
+    assert schema["properties"]["marker"] == {
+        "type": "string",
+        "enum": ["codex-live-ok"],
+    }
 
 
 def test_validate_output_uses_aliases_defaults_and_original_model() -> None:

@@ -25,6 +25,15 @@ def test_build_mcp_server_registers_each_tool(capsys):
     assert "tools=double,shout" in err
 
 
+def test_build_mcp_server_uses_custom_name() -> None:
+    registry = ToolRegistry()
+    registry.register_toolset(EchoToolSet, module="t", expose_mcp=True)
+
+    server = build_mcp_server("echo", name="feedback-tools", registry=registry)
+
+    assert server.name == "feedback-tools"
+
+
 def test_build_mcp_server_unknown_toolset_systemexit(capsys):
     registry = ToolRegistry()
     with pytest.raises(SystemExit) as excinfo:

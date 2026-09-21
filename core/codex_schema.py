@@ -107,6 +107,9 @@ def _normalize_schema(
     for key in _ANNOTATION_KEYS:
         schema.pop(key, None)
 
+    if "const" in schema:
+        schema["enum"] = [schema.pop("const")]
+
     unknown = sorted(set(schema) - _SCHEMA_KEYS)
     if unknown:
         raise CodexSchemaError(

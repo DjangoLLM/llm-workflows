@@ -467,12 +467,7 @@ wheels = [
 [[package]]
 name = "coding-agent-drivers"
 version = "0.1.0"
-source = { editable = "../coding-agent-drivers" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
+source = { git = "https://github.com/charleeagni/django-agent.git?subdirectory=DjangoAgent%2Fcoding-agent-drivers&rev=a9e1911dbe5ad4c53b659b80d995fb57339e0f0d#a9e1911dbe5ad4c53b659b80d995fb57339e0f0d" }
 
 [[package]]
 name = "cohere"
@@ -820,7 +815,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coding-agent-drivers", editable = "../coding-agent-drivers" },
+    { name = "coding-agent-drivers", git = "https://github.com/charleeagni/django-agent.git?subdirectory=DjangoAgent%2Fcoding-agent-drivers&rev=a9e1911dbe5ad4c53b659b80d995fb57339e0f0d" },
     { name = "django", specifier = "==4.2.27" },
     { name = "djangorestframework", specifier = "==3.15.2" },
     { name = "fastmcp", specifier = ">=2,<3" },
