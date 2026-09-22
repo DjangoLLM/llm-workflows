@@ -39,7 +39,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from agents.core.agent import Agent, AgentConfig, ManagedAgent
+from agents.core import AgentConfig
+from agents.runner import Agent, ManagedAgent
 
 
 class Details(BaseModel):
@@ -120,7 +121,28 @@ and Codex configuration you trust.
 See [tests/TESTING.md](tests/TESTING.md) for deterministic and live test
 commands.
 
-## Primitives and Architecture
+## Public interfaces
+
+Workflow code imports definition primitives from `agents.core`. It defines and
+registers toolsets, steps, and workflows. Application execution code imports
+from `agents.runner`, which resolves those registrations and owns persistence,
+backends, and Temporal integration.
+
+```python
+from agents.core import (
+    AgentConfig,
+    Step,
+    StepExecutionType,
+    ToolSet,
+    Workflow,
+    register_step,
+    register_toolset,
+    register_workflow,
+    tool,
+)
+```
+
+## Primitives and architecture
 
 This package provides a framework for building AI pipelines focused on observability and auditability. It mixes deterministic Python code with non-deterministic AI steps, while keeping an absolute database ledger of everything that happens. 
 
@@ -134,8 +156,8 @@ What it does:
 2. It provides a standardized interface for running agents, with inputs and outputs controlled through Pydantic Types.
 3. It executes multi-turn LLM calls to achieve the given objective.
 
-### 2. `PipelineStep`
-A `PipelineStep` is a single unit of execution in your workflow. Steps can be:
+### 2. `Step`
+A `Step` is a single unit of execution in your workflow. Steps can be:
 - **Code Steps**: Pure Python code.
 - **LLM Steps**: Backed by a `ManagedAgent`. You just provide an `AgentConfig`, and the step handles the LLM execution automatically.
 Every time a step runs, a `PipelineStepModel` database record is created to track its inputs and outputs.
@@ -156,11 +178,11 @@ if verdict["result"]:
 
 Output is `{"result": bool, "confidence": float, "probabilities": {"true": p, "false": q}}`. Requires `TYPESAFE_API_KEY`. For more than two outcomes use a Jev `AgentConfig` with your own `questions` criteria.
 
-### 4. `Pipeline`
-A `Pipeline` groups your `PipelineStep`s together. However, the `Pipeline` class itself does **not** contain orchestration logic (it does not contain a loop to move from step 1 to step 2). It acts purely as a bookkeeping tool, creating a `PipelineRun` database record to tie the step executions together.
+### 4. `Workflow`
+A `Workflow` names and groups its `Step` definitions. The runner records each execution as a `PipelineRun`; that persisted model keeps its existing name for database compatibility.
 
 ### 5. Temporal (The Orchestrator)
-Because `Pipeline` only handles database bookkeeping, an external orchestrator is required to actually transition from one step to the next. **Temporal is the only documented and supported workflow execution path for this package.** The Temporal workflow handles the execution order, retries, timeouts, and failure handling, calling the pipeline steps as Temporal Activities.
+Temporal is the supported executor. It handles execution order, retries, timeouts, and failure handling while calling registered steps as activities.
 
 ---
 
@@ -176,12 +198,17 @@ Define what your pipeline does. You can place this in a file like `my_app/pipeli
 
 ```python
 from typing import Optional
-from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
-from agents.core.agent import AgentConfig
-from agents.core.step_catalog import StepCatalog, StepExecutionType
+from agents.core import (
+    AgentConfig,
+    Step,
+    StepExecutionType,
+    Workflow,
+    register_step,
+    register_workflow,
+)
 
 # --- STEP 1: A Standard Python Code Step ---
-class CleanFeedbackStep(PipelineStep):
+class CleanFeedbackStep(Step):
     def execute(self, payload: dict) -> dict:
         # Clean up the text
         raw_text = payload.get("text", "")
@@ -189,7 +216,7 @@ class CleanFeedbackStep(PipelineStep):
         return {"cleaned_text": cleaned_text}
 
 # --- STEP 2: An LLM Agent Step ---
-class AnalyzeFeedbackStep(PipelineStep):
+class AnalyzeFeedbackStep(Step):
     @property
     def agent_config(self) -> Optional[AgentConfig]:
         # Provide the instructions for the LLM under the hood
@@ -203,7 +230,7 @@ class AnalyzeFeedbackStep(PipelineStep):
         )
 
 # --- THE PIPELINE ---
-class FeedbackPipeline(Pipeline):
+class FeedbackWorkflow(Workflow):
     name = "feedback.pipeline"
     steps = {
         "clean_text": CleanFeedbackStep,
@@ -213,18 +240,18 @@ class FeedbackPipeline(Pipeline):
 # --- REGISTRATION ---
 # This function registers the pipeline with the system.
 def register_feedback_pipeline():
-    PipelineRegistry.register(FeedbackPipeline)
+    register_workflow(FeedbackWorkflow)
     
-    StepCatalog.register_step(
+    register_step(
         key="clean_text",
-        pipeline_name="feedback.pipeline",
+        workflow_name="feedback.pipeline",
         step_class=CleanFeedbackStep,
         execution_type=StepExecutionType.CODE,
     )
     
-    StepCatalog.register_step(
+    register_step(
         key="analyze",
-        pipeline_name="feedback.pipeline",
+        workflow_name="feedback.pipeline",
         step_class=AnalyzeFeedbackStep,
         execution_type=StepExecutionType.LLM,
     )
@@ -252,11 +279,11 @@ Create a file called `my_app/temporal_plugin.py`. This is where we tell Temporal
 ```python
 from datetime import timedelta
 from temporalio import workflow
-from agents.core.temporal.worker_plugins import TemporalWorkerPlugin
+from agents.runner.temporal.worker_plugins import TemporalWorkerPlugin
 
 # Safely import the built-in activities
 with workflow.unsafe.imports_passed_through():
-    from agents.core.temporal.activities import (
+    from agents.runner.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
         mark_pipeline_success_activity,

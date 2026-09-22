@@ -8,12 +8,12 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from agents.core.codex_runner import (
+from agents.runner.backends.codex import (
     CodexConfigurationError,
     CodexExecutionError,
     CodexRunner,
 )
-from agents.core.codex_schema import CodexResponseValidationError
+from agents.runner.backends.codex_schema import CodexResponseValidationError
 
 
 class _Answer(BaseModel):
@@ -154,7 +154,7 @@ def fake_codex(monkeypatch) -> type[_FakeCodexWrapper]:
         pass
 
     monkeypatch.setattr(
-        "agents.core.codex_runner.CodexCLIWrapper", FakeCodexWrapper
+        "agents.runner.backends.codex.CodexCLIWrapper", FakeCodexWrapper
     )
     return FakeCodexWrapper
 

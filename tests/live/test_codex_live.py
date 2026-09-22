@@ -10,7 +10,8 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from agents import AgentRunStatus
-from agents.core.agent import Agent, AgentConfig, ManagedAgent
+from agents.core import AgentConfig
+from agents.runner import Agent, ManagedAgent
 from agents.models import AgentRun
 
 

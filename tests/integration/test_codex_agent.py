@@ -7,7 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from agents.core.agent import Agent, AgentConfig
+from agents.core import AgentConfig
+from agents.runner import Agent
 
 
 class _Answer(BaseModel):

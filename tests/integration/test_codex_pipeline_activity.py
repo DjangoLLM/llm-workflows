@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from agents.core.agent import AgentConfig
+from agents.core import AgentConfig
 from agents.core.agent_config_catalog import AgentConfigCatalog
 from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
 from agents.core.step_catalog import StepCatalog, StepExecutionType
-from agents.core.temporal.activities import execute_pipeline_step_activity
+from agents.runner.temporal.activities import execute_pipeline_step_activity
 from agents.models import AgentRunStatus, PipelineStep as PipelineStepModel, PipelineStatus
 
 

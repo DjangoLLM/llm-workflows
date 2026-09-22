@@ -6,7 +6,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from temporalio import activity, workflow
 
-from agents.core.temporal.worker_plugins import (
+from agents.runner.temporal.worker_plugins import (
     TemporalActivityRegistration,
     TemporalWorkerPlugin,
     _build_plugin_module_paths,
@@ -74,7 +74,7 @@ def test_get_configured_plugin_modules_rejects_empty_entry(settings) -> None:
 
 
 def test_build_plugin_module_paths_rejects_duplicates(settings) -> None:
-    settings.AGENTS_TEMPORAL_PLUGIN_MODULES = ["agents.core.temporal.plugins.core"]
+    settings.AGENTS_TEMPORAL_PLUGIN_MODULES = ["agents.runner.temporal.plugins.core"]
 
     with pytest.raises(ImproperlyConfigured, match="Duplicate Temporal plugin module"):
         _build_plugin_module_paths()
@@ -82,7 +82,7 @@ def test_build_plugin_module_paths_rejects_duplicates(settings) -> None:
 
 def test_load_plugin_rejects_missing_entrypoint(monkeypatch) -> None:
     monkeypatch.setattr(
-        "agents.core.temporal.worker_plugins.importlib.import_module",
+        "agents.runner.temporal.worker_plugins.importlib.import_module",
         lambda _module_path: object(),
     )
 
@@ -93,7 +93,7 @@ def test_load_plugin_rejects_missing_entrypoint(monkeypatch) -> None:
 def test_load_plugin_rejects_wrong_return_type(monkeypatch) -> None:
     module = SimpleNamespace(get_temporal_worker_plugin=lambda: object())
     monkeypatch.setattr(
-        "agents.core.temporal.worker_plugins.importlib.import_module",
+        "agents.runner.temporal.worker_plugins.importlib.import_module",
         lambda _module_path: module,
     )
 
@@ -205,17 +205,17 @@ def test_build_temporal_worker_composition_loads_core_and_custom(settings, monke
     )
 
     modules = {
-        "agents.core.temporal.plugins.core": SimpleNamespace(get_temporal_worker_plugin=lambda: core_plugin),
+        "agents.runner.temporal.plugins.core": SimpleNamespace(get_temporal_worker_plugin=lambda: core_plugin),
         "custom.plugin": SimpleNamespace(get_temporal_worker_plugin=lambda: custom_plugin),
     }
 
     settings.AGENTS_TEMPORAL_PLUGIN_MODULES = ["custom.plugin"]
     monkeypatch.setattr(
-        "agents.core.temporal.worker_plugins.importlib.import_module",
+        "agents.runner.temporal.worker_plugins.importlib.import_module",
         lambda module_path: modules[module_path],
     )
 
     composition = build_temporal_worker_composition()
 
-    assert composition.plugin_modules == ["agents.core.temporal.plugins.core", "custom.plugin"]
+    assert composition.plugin_modules == ["agents.runner.temporal.plugins.core", "custom.plugin"]
     assert composition.plugin_slugs == ["agents", "personal"]

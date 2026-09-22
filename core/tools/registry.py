@@ -163,3 +163,18 @@ class ToolRegistry:
 
 
 default_registry = ToolRegistry()
+
+
+def register_toolset(
+    toolset_cls: type[ToolSet],
+    *,
+    module: str,
+    expose_mcp: bool = False,
+) -> None:
+    """Register an author-defined toolset with the default registry."""
+
+    default_registry.register_toolset(
+        toolset_cls,
+        module=module,
+        expose_mcp=expose_mcp,
+    )

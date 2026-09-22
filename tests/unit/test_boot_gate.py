@@ -1,4 +1,4 @@
-"""Assert that non-MCP Django commands never import `agents.core.tools.mcp.runner`.
+"""Assert that non-MCP Django commands never import `agents.runner.tools.mcp.runner`.
 
 The runner is the only module that starts a FastMCP transport; if it isn't
 imported, no port is opened. We verify by spawning a subprocess running the
@@ -17,7 +17,7 @@ import tempfile
 import pytest
 
 
-_RUNNER = "agents.core.tools.mcp.runner"
+_RUNNER = "agents.runner.tools.mcp.runner"
 
 
 def _run_with_module_capture(invocation: str) -> set[str]:

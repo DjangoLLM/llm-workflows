@@ -7,7 +7,8 @@ from pydantic import BaseModel
 from pydantic_ai.messages import ModelResponse, RetryPromptPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from agents.core.agent import Agent, AgentConfig
+from agents.core import AgentConfig
+from agents.runner import Agent
 from agents.core.tools.contracts import Tool
 
 

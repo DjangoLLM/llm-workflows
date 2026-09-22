@@ -14,7 +14,7 @@ from pydantic import (
     field_validator,
 )
 
-from agents.core.codex_schema import (
+from agents.runner.backends.codex_schema import (
     CodexResponseValidationError,
     CodexSchemaError,
     build_codex_output_schema,

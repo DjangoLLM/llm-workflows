@@ -1,5 +1,5 @@
 from agents.core.tools.contracts import Tool, ToolExecutionError
-from agents.core.tools.registry import ToolRegistry, default_registry
+from agents.core.tools.registry import ToolRegistry, default_registry, register_toolset
 from agents.core.tools.toolset import ToolSet, tool
 
 __all__ = (
@@ -9,4 +9,5 @@ __all__ = (
     "ToolExecutionError",
     "ToolRegistry",
     "default_registry",
+    "register_toolset",
 )

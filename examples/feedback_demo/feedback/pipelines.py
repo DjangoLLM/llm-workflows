@@ -5,10 +5,17 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from agents.core.agent import AgentConfig
-from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
-from agents.core.step_catalog import StepCatalog, StepExecutionType
+from agents.core import (
+    AgentConfig,
+    Step,
+    StepExecutionType,
+    Workflow,
+    register_step,
+    register_workflow,
+)
+from agents.core.step_catalog import StepCatalog
 from agents.core.tools import default_registry
+from agents.core.workflow import WorkflowRegistry
 
 PIPELINE_NAME = "feedback.pipeline"
 CLEAN_STEP = "clean_text"
@@ -16,7 +23,7 @@ ECHO_STEP = "echo_tool"
 ANALYZE_STEP = "analyze"
 
 
-class CleanFeedbackStep(PipelineStep):
+class CleanFeedbackStep(Step):
     """Normalize raw feedback before sending it to the LLM step."""
 
     def execute(self, payload: dict) -> dict:
@@ -28,7 +35,7 @@ class CleanFeedbackStep(PipelineStep):
         }
 
 
-class EchoToolStep(PipelineStep):
+class EchoToolStep(Step):
     """Invoke the echo tool from default_registry to demonstrate the tool call path."""
 
     def execute(self, payload: dict) -> dict:
@@ -37,7 +44,7 @@ class EchoToolStep(PipelineStep):
         return {**payload, "tool_result": result.model_dump()}
 
 
-class AnalyzeFeedbackStep(PipelineStep):
+class AnalyzeFeedbackStep(Step):
     """Analyze cleaned feedback with a managed LLM agent."""
 
     @property
@@ -54,7 +61,7 @@ class AnalyzeFeedbackStep(PipelineStep):
         )
 
 
-class FeedbackPipeline(Pipeline):
+class FeedbackWorkflow(Workflow):
     name = PIPELINE_NAME
     steps = {
         CLEAN_STEP: CleanFeedbackStep,
@@ -66,31 +73,31 @@ class FeedbackPipeline(Pipeline):
 def register_feedback_pipeline() -> None:
     """Register the demo pipeline and its steps once per process."""
     try:
-        PipelineRegistry.get(PIPELINE_NAME)
+        WorkflowRegistry.get(PIPELINE_NAME)
     except ValueError:
-        PipelineRegistry.register(FeedbackPipeline)
+        register_workflow(FeedbackWorkflow)
 
     existing_keys = set(StepCatalog.list_step_keys())
     if CLEAN_STEP not in existing_keys:
-        StepCatalog.register_step(
+        register_step(
             key=CLEAN_STEP,
-            pipeline_name=PIPELINE_NAME,
+            workflow_name=PIPELINE_NAME,
             step_class=CleanFeedbackStep,
             execution_type=StepExecutionType.CODE,
         )
 
     if ECHO_STEP not in existing_keys:
-        StepCatalog.register_step(
+        register_step(
             key=ECHO_STEP,
-            pipeline_name=PIPELINE_NAME,
+            workflow_name=PIPELINE_NAME,
             step_class=EchoToolStep,
             execution_type=StepExecutionType.CODE,
         )
 
     if ANALYZE_STEP not in existing_keys:
-        StepCatalog.register_step(
+        register_step(
             key=ANALYZE_STEP,
-            pipeline_name=PIPELINE_NAME,
+            workflow_name=PIPELINE_NAME,
             step_class=AnalyzeFeedbackStep,
             execution_type=StepExecutionType.LLM,
         )

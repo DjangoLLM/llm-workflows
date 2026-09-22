@@ -10,8 +10,9 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from agents import AgentRunStatus
-from agents.core.agent import AgentConfig, ManagedAgent, agent_run_finished
-from agents.core.codex_schema import CodexSchemaError
+from agents.core import AgentConfig
+from agents.runner import ManagedAgent, agent_run_finished
+from agents.runner.backends.codex_schema import CodexSchemaError
 from agents.handlers import agent_run_completed
 from agents.models import AgentRun
 

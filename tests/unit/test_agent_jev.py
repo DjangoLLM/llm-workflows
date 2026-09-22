@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from agents.core.agent import Agent, AgentConfig
+from agents.core import AgentConfig
+from agents.runner import Agent
 
 QUESTIONS = {"category": {"criteria": {"meeting": "Meeting notes", "task": "Status update or task"}}}
 
@@ -30,7 +31,7 @@ def test_jev_agent_skips_pydantic_and_returns_validated_choices(monkeypatch) -> 
             "answers": {"category": {"choice": "task", "confidence": 0.8, "probabilities": {"meeting": 0.2, "task": 0.8}}},
         }
 
-    monkeypatch.setattr("agents.core.jev.post_json", fake_post)
+    monkeypatch.setattr("agents.runner.backends.jev.post_json", fake_post)
     agent = Agent(config=_config(model="jev-latest"))
     assert agent._pydantic_agent is None
 
@@ -51,7 +52,7 @@ def test_jev_agent_skips_pydantic_and_returns_validated_choices(monkeypatch) -> 
 def test_jev_agent_rejects_choice_outside_offered_ids(monkeypatch) -> None:
     monkeypatch.setenv("TYPESAFE_API_KEY", "k")
     monkeypatch.setattr(
-        "agents.core.jev.post_json",
+        "agents.runner.backends.jev.post_json",
         lambda body, key: {"answers": {"category": {"choice": "other", "confidence": 1, "probabilities": {"other": 1}}}},
     )
     with pytest.raises(ValueError, match="Invalid Jev answer"):

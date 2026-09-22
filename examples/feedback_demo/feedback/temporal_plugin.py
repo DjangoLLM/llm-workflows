@@ -6,10 +6,10 @@ from datetime import timedelta
 
 from temporalio import workflow
 
-from agents.core.temporal.worker_plugins import TemporalWorkerPlugin
+from agents.runner.temporal.worker_plugins import TemporalWorkerPlugin
 
 with workflow.unsafe.imports_passed_through():
-    from agents.core.temporal.activities import (
+    from agents.runner.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
         mark_pipeline_failed_activity,

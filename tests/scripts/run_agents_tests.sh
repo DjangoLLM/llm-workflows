@@ -76,6 +76,7 @@ PYTEST_CMD=(
   --with .
   --with pytest
   --with pytest-django
+  --with pytest-asyncio
   --with pytest-cov
   --with coverage[toml]
   --with dj-database-url

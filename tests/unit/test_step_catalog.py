@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from agents.core.agent import AgentConfig
+from agents.core import AgentConfig
 from agents.core.agent_config_catalog import AgentConfigCatalog
 from agents.core.pipeline_structure import PipelineStep
 from agents.core.step_catalog import StepCatalog, StepExecutionType

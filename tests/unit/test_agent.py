@@ -10,7 +10,8 @@ from unittest import mock
 
 import pytest
 
-from agents.core.agent import Agent, AgentConfig
+from agents.core import AgentConfig
+from agents.runner import Agent
 from agents.core.json_safe import json_safe as _json_safe_value
 
 
@@ -24,9 +25,9 @@ class DemoData:
 
 
 def _patch_openai_model_construction(monkeypatch) -> None:
-    monkeypatch.setattr("agents.core.agent.OpenAIResponsesModel", lambda model: f"model:{model}")
+    monkeypatch.setattr("agents.runner.agent.OpenAIResponsesModel", lambda model: f"model:{model}")
     monkeypatch.setattr(
-        "agents.core.agent.OpenAIResponsesModelSettings",
+        "agents.runner.agent.OpenAIResponsesModelSettings",
         lambda **kwargs: {"settings": kwargs},
     )
 
@@ -40,7 +41,7 @@ def test_agent_requires_config_or_default(settings) -> None:
 
 def test_agent_uses_explicit_config_with_string_model(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
+    with mock.patch("agents.runner.agent.PydanticAgent") as pydantic_agent:
         Agent(config=AgentConfig(instructions="test", model="gpt-5-mini"))
 
     assert pydantic_agent.call_count == 1
@@ -48,7 +49,7 @@ def test_agent_uses_explicit_config_with_string_model(monkeypatch) -> None:
 
 def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.core.agent.PydanticAgent") as pydantic_agent:
+    with mock.patch("agents.runner.agent.PydanticAgent") as pydantic_agent:
         Agent(instructions="from kwargs", model="gpt-5-mini")
 
     assert pydantic_agent.call_count == 1
@@ -57,7 +58,7 @@ def test_agent_builds_config_from_kwargs(monkeypatch) -> None:
 def test_agent_builds_codex_backend_from_kwargs() -> None:
     runner = mock.Mock()
     with mock.patch(
-        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+        "agents.runner.backends.codex.CodexRunner.from_config", return_value=runner
     ) as from_config:
         agent = Agent(
             instructions="typed",
@@ -80,7 +81,7 @@ def test_agent_uses_configured_codex_default(settings) -> None:
     runner = mock.Mock()
 
     with mock.patch(
-        "agents.core.codex_runner.CodexRunner.from_config", return_value=runner
+        "agents.runner.backends.codex.CodexRunner.from_config", return_value=runner
     ):
         agent = Agent()
 
@@ -90,7 +91,7 @@ def test_agent_uses_configured_codex_default(settings) -> None:
 
 def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.core.agent.PydanticAgent"):
+    with mock.patch("agents.runner.agent.PydanticAgent"):
         agent = Agent(config=AgentConfig(instructions="x"))
 
     fake = mock.Mock()
@@ -105,7 +106,7 @@ def test_agent_run_sync_serializes_payload_json(monkeypatch) -> None:
 
 def test_agent_run_async_serializes_payload_json(monkeypatch) -> None:
     _patch_openai_model_construction(monkeypatch)
-    with mock.patch("agents.core.agent.PydanticAgent"):
+    with mock.patch("agents.runner.agent.PydanticAgent"):
         agent = Agent(config=AgentConfig(instructions="x"))
 
     class FakeAsync:

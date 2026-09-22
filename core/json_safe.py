@@ -11,4 +11,7 @@ def json_safe(value: Any) -> Any:
     nested mappings/sequences. Unknown types degrade to their string form
     rather than raising, so an odd output never fails a run at save time.
     """
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        value = model_dump()
     return to_jsonable_python(value, serialize_unknown=True)

@@ -13,10 +13,11 @@ from django.urls import reverse
 from temporalio.client import Client
 
 from agents.models import AgentRun, PipelineRun, PipelineStatus, PipelineStep
+from agents.runner import create_workflow_run
 
 from agents.core.tools import default_registry
 
-from .pipelines import ANALYZE_STEP, FeedbackPipeline
+from .pipelines import ANALYZE_STEP, PIPELINE_NAME
 
 WORKFLOW_NAME = "feedback.pipeline.workflow"
 
@@ -64,7 +65,7 @@ def start(request: HttpRequest) -> HttpResponse:
             status=400,
         )
 
-    run_id = FeedbackPipeline.create_run({"text": feedback_text})
+    run_id = create_workflow_run(PIPELINE_NAME, {"text": feedback_text})
 
     try:
         async_to_sync(_start_feedback_workflow)(run_id, feedback_text)

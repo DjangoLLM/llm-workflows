@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from agents.core.tools import ToolRegistry
-from agents.core.tools.mcp.server import build_mcp_server
+from agents.runner.tools.mcp.server import build_mcp_server
 
 from tests.unit._toolsets import EchoToolSet, FailingTool, MultiToolSet, UnsafeToolSet
 
@@ -85,12 +85,12 @@ def test_in_process_tool_execution_error_is_tool_call_error():
 
 
 def test_server_module_does_not_import_fastmcp_at_top():
-    """The agents.core.tools.mcp.server module must be importable without fastmcp."""
+    """The agents.runner.tools.mcp.server module must be importable without fastmcp."""
     import subprocess
 
     code = (
         "import sys\n"
-        "import agents.core.tools.mcp.server\n"
+        "import agents.runner.tools.mcp.server\n"
         "assert 'fastmcp' not in sys.modules, sorted(m for m in sys.modules if 'fastmcp' in m)\n"
     )
     subprocess.run(

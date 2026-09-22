@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument("--name", default=None)
 
     def handle(self, *args, **options) -> None:
-        from agents.core.tools.mcp.runner import run
+        from agents.runner.tools.mcp.runner import run
 
         run(
             options["toolset"],

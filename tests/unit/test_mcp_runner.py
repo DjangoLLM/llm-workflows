@@ -4,13 +4,13 @@ from unittest import mock
 
 import pytest
 
-from agents.core.tools.mcp.runner import run
+from agents.runner.tools.mcp.runner import run
 
 
 def test_runner_routes_stdio_without_network_options(monkeypatch) -> None:
     server = mock.Mock()
     build_server = mock.Mock(return_value=server)
-    monkeypatch.setattr("agents.core.tools.mcp.runner.build_mcp_server", build_server)
+    monkeypatch.setattr("agents.runner.tools.mcp.runner.build_mcp_server", build_server)
 
     run("echo", transport="stdio")
 
@@ -21,7 +21,7 @@ def test_runner_routes_stdio_without_network_options(monkeypatch) -> None:
 def test_runner_forwards_custom_server_name(monkeypatch) -> None:
     server = mock.Mock()
     build_server = mock.Mock(return_value=server)
-    monkeypatch.setattr("agents.core.tools.mcp.runner.build_mcp_server", build_server)
+    monkeypatch.setattr("agents.runner.tools.mcp.runner.build_mcp_server", build_server)
 
     run("echo", name="feedback-tools")
 
@@ -36,7 +36,7 @@ def test_runner_forwards_custom_server_name(monkeypatch) -> None:
 def test_runner_forwards_network_transport_options(monkeypatch, transport: str) -> None:
     server = mock.Mock()
     monkeypatch.setattr(
-        "agents.core.tools.mcp.runner.build_mcp_server",
+        "agents.runner.tools.mcp.runner.build_mcp_server",
         mock.Mock(return_value=server),
     )
 

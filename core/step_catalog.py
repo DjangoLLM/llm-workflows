@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Type
 from agents.core.agent import AgentConfig
 from agents.core.agent_config_catalog import AgentConfigCatalog
 from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.core.workflow import Workflow
 
 
 class StepExecutionType(str, Enum):
@@ -168,8 +169,24 @@ class StepCatalog:
             )
 
         pipeline_cls = PipelineRegistry.get(pipeline_name)
-        pipeline_instance = pipeline_cls(payload=payload, run_id=run_id)
         resolved_config = cls._resolve_optional_agent_config(metadata)
+        if issubclass(pipeline_cls, Workflow) and not issubclass(
+            pipeline_cls, Pipeline
+        ):
+            from agents.runner.workflow import execute_workflow_step
+
+            return execute_workflow_step(
+                run_id=run_id,
+                workflow_name=pipeline_name,
+                step_key=step_key,
+                payload=payload,
+                order_index=order_index,
+                parent_ids=parent_ids,
+                agent_config=resolved_config,
+                workflow_cls=pipeline_cls,
+            )
+
+        pipeline_instance = pipeline_cls(payload=payload, run_id=run_id)
         return pipeline_instance.execute_step(
             run_id=run_id,
             step_key=step_key,
@@ -195,6 +212,15 @@ class StepCatalog:
         if not metadata.agent_config_key:
             return None
         return AgentConfigCatalog.resolve_agent_config(metadata.agent_config_key)
+
+    @classmethod
+    def resolve_agent_config(
+        cls,
+        metadata: StepRegistration,
+    ) -> Optional[AgentConfig]:
+        """Resolve the execution configuration attached to a registration."""
+
+        return cls._resolve_optional_agent_config(metadata)
 
     @classmethod
     def _validate_pipeline_mapping(
@@ -252,3 +278,26 @@ class StepCatalog:
             raise ValueError(
                 f"LLM step '{key}' requires agent_config_key or agent_config property."
             )
+
+
+def register_step(
+    *,
+    key: str,
+    workflow_name: str,
+    step_class: Type[PipelineStep],
+    execution_type: StepExecutionType | str,
+    default_timeout_seconds: Optional[int] = None,
+    retry_policy: Optional[Dict[str, Any]] = None,
+    agent_config_key: Optional[str] = None,
+) -> None:
+    """Register a step definition with the default catalog."""
+
+    StepCatalog.register_step(
+        key=key,
+        pipeline_name=workflow_name,
+        step_class=step_class,
+        execution_type=execution_type,
+        default_timeout_seconds=default_timeout_seconds,
+        retry_policy=retry_policy,
+        agent_config_key=agent_config_key,
+    )

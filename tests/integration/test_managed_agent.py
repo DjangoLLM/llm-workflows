@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from agents import AgentRunStatus, run_agent
-from agents.core.agent import ManagedAgent
+from agents.runner import ManagedAgent
 from agents.handlers import agent_run_completed
 from agents.models import AgentRun
 from tests.support.stubs import DataclassOutput, FakeAgentFailure, FakeAgentSuccess

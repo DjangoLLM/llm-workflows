@@ -99,7 +99,7 @@ def test_run_tools_mcp_invokes_runner_with_defaults(monkeypatch):
         captured["port"] = port
         captured["name"] = name
 
-    monkeypatch.setattr("agents.core.tools.mcp.runner.run", fake_run)
+    monkeypatch.setattr("agents.runner.tools.mcp.runner.run", fake_run)
 
     call_command("run_tools_mcp", "--toolset", "echo")
 
@@ -122,7 +122,7 @@ def test_run_tools_mcp_passes_through_http_args(monkeypatch):
         captured["port"] = port
         captured["name"] = name
 
-    monkeypatch.setattr("agents.core.tools.mcp.runner.run", fake_run)
+    monkeypatch.setattr("agents.runner.tools.mcp.runner.run", fake_run)
 
     call_command(
         "run_tools_mcp",
@@ -142,7 +142,7 @@ def test_run_tools_mcp_passes_through_http_args(monkeypatch):
 
 
 def test_runner_refuses_http_without_port(populated_default_registry, capsys):
-    from agents.core.tools.mcp.runner import run
+    from agents.runner.tools.mcp.runner import run
 
     with pytest.raises(SystemExit) as excinfo:
         run("echo", transport="http", port=None)

@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from agents.core.temporal.workflows import WorkflowExecutionHelpers
+from agents.runner.temporal.workflows import WorkflowExecutionHelpers
 
 
 def test_extract_run_payload_with_nested_payload() -> None:
@@ -63,8 +63,8 @@ def test_fail_workflow_executes_failure_activity(monkeypatch) -> None:
         def error(self, *_args, **_kwargs):
             return None
 
-    monkeypatch.setattr("agents.core.temporal.workflows.workflow.logger", DummyLogger())
-    monkeypatch.setattr("agents.core.temporal.workflows.workflow.execute_activity", fake_execute_activity)
+    monkeypatch.setattr("agents.runner.temporal.workflows.workflow.logger", DummyLogger())
+    monkeypatch.setattr("agents.runner.temporal.workflows.workflow.execute_activity", fake_execute_activity)
 
     asyncio.run(
         WorkflowExecutionHelpers.fail_workflow(

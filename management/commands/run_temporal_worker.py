@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from agents.core.temporal.worker_plugins import build_temporal_worker_composition
+from agents.runner.temporal.worker_plugins import build_temporal_worker_composition
 
 logger = logging.getLogger(__name__)
 

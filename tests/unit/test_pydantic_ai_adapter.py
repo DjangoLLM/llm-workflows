@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agents.core.tools.contracts import Tool
-from agents.core.tools.pydantic_ai_adapter import build_pydantic_ai_tool
+from agents.runner.tools.pydantic_ai import build_pydantic_ai_tool
 
 
 class _ConstrainedInput(BaseModel):

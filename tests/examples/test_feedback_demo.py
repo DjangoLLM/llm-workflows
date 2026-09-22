@@ -19,7 +19,7 @@ from feedback.pipelines import (
     ANALYZE_STEP,
     CLEAN_STEP,
     PIPELINE_NAME,
-    FeedbackPipeline,
+    FeedbackWorkflow,
     register_feedback_pipeline,
 )
 from feedback.temporal_plugin import get_temporal_worker_plugin
@@ -29,7 +29,7 @@ from feedback.views import run_status, start
 def test_feedback_pipeline_registration() -> None:
     register_feedback_pipeline()
 
-    assert PipelineRegistry.get(PIPELINE_NAME) is FeedbackPipeline
+    assert PipelineRegistry.get(PIPELINE_NAME) is FeedbackWorkflow
     assert StepCatalog.get_step(CLEAN_STEP).execution_type == StepExecutionType.CODE
     assert StepCatalog.get_step(ANALYZE_STEP).execution_type == StepExecutionType.LLM
 
@@ -102,6 +102,7 @@ def test_start_view_validates_feedback_text() -> None:
 
 @pytest.mark.django_db
 def test_start_view_creates_run_and_starts_temporal(monkeypatch) -> None:
+    register_feedback_pipeline()
     calls: list[tuple[str, str]] = []
 
     async def fake_start_feedback_workflow(run_id: str, text: str) -> None:

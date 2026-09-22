@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from agents.core.agent import AgentConfig
+from agents.core import AgentConfig
 from agents.core.agent_config_catalog import AgentConfigCatalog
 
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from agents.core.agent import Agent, AgentConfig
+from agents.core import AgentConfig
+from agents.runner import Agent
 
 
 @pytest.mark.live

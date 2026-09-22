@@ -14,7 +14,7 @@ import agents.core.step_registrations as step_registrations
 from agents.core.agent_config_catalog import AgentConfigCatalog
 from agents.core.pipeline_structure import PipelineRegistry
 from agents.core.step_catalog import StepCatalog
-from agents.core.temporal import activities as temporal_activities
+from agents.runner.temporal import activities as temporal_activities
 
 
 class InlineThread:
@@ -84,7 +84,7 @@ def reset_catalog_singletons() -> None:
 
 @pytest.fixture
 def inline_thread(monkeypatch):
-    monkeypatch.setattr("agents.core.agent.threading.Thread", InlineThread)
+    monkeypatch.setattr("agents.runner.agent.threading.Thread", InlineThread)
     return InlineThread
 
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from agents.core.jev_if import CRITERIA, HEAD, JevIf, collapse
-from agents.core.temporal import activities
+from agents.runner.choice import CRITERIA, HEAD, JevIf, collapse
+from agents.runner.temporal import activities
 
 RAW = {
     "choices": {HEAD: "true"},
