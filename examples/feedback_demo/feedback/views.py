@@ -15,7 +15,7 @@ from temporalio.client import Client
 from agents.models import AgentRun, PipelineRun, PipelineStatus, PipelineStep
 from agents.runner import create_workflow_run
 
-from agents.core.tools import default_registry
+from agents.runner.tools import default_registry
 
 from .pipelines import ANALYZE_STEP, PIPELINE_NAME
 
@@ -45,6 +45,7 @@ def index(request: HttpRequest, run_id: str | None = None) -> HttpResponse:
         {
             "run": run,
             "status_url": reverse("feedback:run_status", args=[run.id]) if run else "",
+            "submitted_text": (run.root_payload or {}).get("text", "") if run else "",
         },
     )
 

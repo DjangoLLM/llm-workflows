@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from agents.core import AgentConfig
+from agents.inferences.agents import AgentDefinition
 from agents.runner import Agent
 
 
@@ -53,7 +53,7 @@ def test_codex_agent_run_sync_returns_validated_model_and_cleans_files(
     tmp_path: Path, monkeypatch
 ) -> None:
     capture_path = _install_fake_codex(tmp_path, monkeypatch)
-    agent = Agent(config=AgentConfig(
+    agent = Agent(definition=AgentDefinition(
         instructions="Return the requested typed answer.",
         execution_backend="codex_cli",
         model="test-model",

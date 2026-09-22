@@ -1,21 +1,42 @@
-# Feedback Pipeline Demo
+# Feedback pipeline demo
 
-This is a throw-away Django project that demonstrates the README feedback
-pipeline with Temporal and the reusable `agents` app.
+This Django project demonstrates a feedback workflow with Temporal and Codex.
+It cleans text, calls an echo tool, and asks Codex for a typed feedback analysis.
 
-## Run
+## Run end to end on the host
+
+Install the project dependencies in the repo virtual environment. The
+`coding-agent-drivers` sibling checkout configured in `pyproject.toml` must exist.
+The `temporal` and `codex` CLIs must be on PATH, and Codex must be signed in.
 
 ```bash
-cp examples/feedback_demo/.env.example examples/feedback_demo/.env
-# Edit examples/feedback_demo/.env and set OPENAI_API_KEY.
-docker compose -f examples/feedback_demo/docker-compose.yml up --build
+cd examples/feedback_demo
+../../.venv/bin/python run_e2e.py
 ```
 
-Open:
+This starts a Temporal dev server, a worker, and the Django server. It submits
+feedback through the HTTP form, waits for the workflow, and prints the analysis.
+It exits with status 0 on success and tears down the processes afterward.
 
-- Django demo UI: http://localhost:8000
-- Temporal UI: http://localhost:8233
+Set `CODEX_MODEL` to override the model configured in Codex. The analysis step
+makes a real Codex call. Step activities retry at most three times.
 
-The page submits feedback, starts `feedback.pipeline.workflow`, polls the
-`PipelineRun` ledger, and displays the final LLM analysis when the workflow
-finishes.
+## Run the services separately
+
+The Compose file provides Temporal only. Run the worker on the host so it can
+use the installed Codex CLI and its existing sign-in.
+
+```bash
+docker compose -f examples/feedback_demo/docker-compose.yml up -d
+cd examples/feedback_demo
+../../.venv/bin/python manage.py migrate --run-syncdb --noinput
+../../.venv/bin/python manage.py run_temporal_worker
+```
+
+In another terminal, start the web server from the same directory:
+
+```bash
+../../.venv/bin/python manage.py runserver
+```
+
+Open the demo at http://localhost:8000 and Temporal at http://localhost:8233.

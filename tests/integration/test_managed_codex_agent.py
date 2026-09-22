@@ -10,9 +10,9 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from agents import AgentRunStatus
-from agents.core import AgentConfig
+from agents.inferences.agents import AgentDefinition
 from agents.runner import ManagedAgent, agent_run_finished
-from agents.runner.backends.codex_schema import CodexSchemaError
+from agents.adapters.inference.codex.schema import CodexSchemaError
 from agents.handlers import agent_run_completed
 from agents.models import AgentRun
 
@@ -76,8 +76,8 @@ raise SystemExit(int(os.environ.get("FAKE_CODEX_EXIT_CODE", "0")))
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
 
 
-def _config(tmp_path: Path) -> AgentConfig:
-    return AgentConfig(
+def _config(tmp_path: Path) -> AgentDefinition:
+    return AgentDefinition(
         instructions="Return the requested managed answer.",
         execution_backend="codex_cli",
         model="test-model",
@@ -103,7 +103,7 @@ def test_managed_codex_sync_persists_nested_json_and_completion_notifications(
     agent_run_completed.connect(completed_receiver)
     agent_run_finished.connect(finished_receiver)
     try:
-        managed = ManagedAgent(config=_config(tmp_path), agent_label="codex-pipeline")
+        managed = ManagedAgent(definition=_config(tmp_path), agent_label="codex-pipeline")
         output = managed.run_sync(
             {"request": "classify"},
             pipeline_name="review-pipeline",
@@ -150,7 +150,7 @@ def test_managed_codex_background_run_reaches_succeeded_with_default_label(
 
     agent_run_completed.connect(receiver)
     try:
-        managed = ManagedAgent(config=_config(tmp_path))
+        managed = ManagedAgent(definition=_config(tmp_path))
         run_id = managed.run({"request": "background"})
         assert terminal.wait(5), "managed Codex run did not emit completion notification"
     finally:
@@ -209,7 +209,7 @@ def test_managed_codex_failures_persist_terminal_state_and_notify(
     agent_run_completed.connect(completed_receiver)
     agent_run_finished.connect(finished_receiver)
     try:
-        managed = ManagedAgent(config=_config(tmp_path), agent_label="codex-failure")
+        managed = ManagedAgent(definition=_config(tmp_path), agent_label="codex-failure")
         output = managed.run_sync({"secret": "must-not-leak"})
     finally:
         agent_run_completed.disconnect(completed_receiver)
@@ -240,10 +240,10 @@ def test_managed_codex_configuration_failure_precedes_run_creation(
     tmp_path: Path,
 ) -> None:
     before = AgentRun.objects.count()
-    config = _config(tmp_path)
-    config.result_type = dict
+    definition = _config(tmp_path)
+    definition.result_type = dict
 
     with pytest.raises(CodexSchemaError):
-        ManagedAgent(config=config)
+        ManagedAgent(definition=definition)
 
     assert AgentRun.objects.count() == before

@@ -3,14 +3,9 @@ branch = True
 source =
     agents
 omit =
-    agents/migrations/*
-    agents/build/*
-    agents/tests/*
-    agents/freedom_agents.egg-info/*
-    agents/admin.py
-    agents/urls.py
-    agents/views/*
-    agents/pipelines/*
+    */agents/migrations/*
+    */agents/admin.py
+    */agents/urls.py
 
 [report]
 skip_covered = False

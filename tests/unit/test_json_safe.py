@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from agents.core.json_safe import json_safe
+from agents.runner.json_safe import json_safe
 
 
 class DemoEnum(enum.Enum):

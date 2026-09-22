@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from agents import AgentRunStatus
-from agents.core import AgentConfig
+from agents.inferences.agents import AgentDefinition
 from agents.runner import Agent, ManagedAgent
 from agents.models import AgentRun
 
@@ -37,8 +37,8 @@ _EXPECTED = _LiveResult(
 )
 
 
-def _config(working_dir: Path) -> AgentConfig:
-    return AgentConfig(
+def _config(working_dir: Path) -> AgentDefinition:
+    return AgentDefinition(
         instructions=(
             "Return exactly the requested values. Set marker to codex-live-ok, "
             "count to 7, details.values to [direct, managed], and details.note to null."
@@ -62,9 +62,9 @@ def test_real_codex_typed_acceptance_across_direct_and_managed_calls(
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     working_dir = Path.cwd()
 
-    async_result = asyncio.run(Agent(config=_config(working_dir)).run({"mode": "async"}))
-    sync_result = Agent(config=_config(working_dir)).run_sync({"mode": "sync"})
-    managed = ManagedAgent(config=_config(working_dir), agent_label="codex-live")
+    async_result = asyncio.run(Agent(definition=_config(working_dir)).run({"mode": "async"}))
+    sync_result = Agent(definition=_config(working_dir)).run_sync({"mode": "sync"})
+    managed = ManagedAgent(definition=_config(working_dir), agent_label="codex-live")
     managed_output = managed.run_sync({"mode": "managed"})
 
     assert type(async_result.output) is _LiveResult

@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 django.setup()
 
 # After django.setup(), AppConfig.ready() has run and the EchoToolSet is registered.
-from agents.core.tools import default_registry  # noqa: E402
+from agents.runner.tools import default_registry  # noqa: E402
 from feedback.tools import EchoOutput  # noqa: E402
 
 

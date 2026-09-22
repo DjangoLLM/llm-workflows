@@ -9,12 +9,13 @@ from django.conf import settings
 from django.db import DEFAULT_DB_ALIAS
 from django.db import connection
 
-import agents.core.agent_config_registrations as agent_config_registrations
-import agents.core.step_registrations as step_registrations
-from agents.core.agent_config_catalog import AgentConfigCatalog
-from agents.core.pipeline_structure import PipelineRegistry
-from agents.core.step_catalog import StepCatalog
-from agents.runner.temporal import activities as temporal_activities
+import agents.runner.agent_definition_registrations as agent_definition_registrations
+import agents.runner.step_registrations as step_registrations
+from agents.catalog.agent_definition_catalog import AgentDefinitionCatalog
+from agents.catalog.choice_definition_catalog import ChoiceDefinitionCatalog
+from agents.runner.pipeline_structure import PipelineRegistry
+from agents.catalog.step_catalog import StepCatalog
+from agents.adapters.temporal import activities as temporal_activities
 
 
 class InlineThread:
@@ -51,26 +52,31 @@ def ensure_vector_extension(django_db_setup, django_db_blocker) -> None:
 def reset_catalog_singletons() -> None:
     """Keep singleton registries isolated between tests."""
     step_snapshot = dict(StepCatalog._steps)
-    config_snapshot = dict(AgentConfigCatalog._resolvers)
+    definition_snapshot = dict(AgentDefinitionCatalog._resolvers)
+    choice_definition_snapshot = dict(ChoiceDefinitionCatalog._resolvers)
     pipeline_snapshot = dict(PipelineRegistry._pipelines)
     activity_snapshot = dict(temporal_activities._TRANSFORMED_STEP_ACTIVITIES)
     step_registered_snapshot = step_registrations._REGISTERED
-    config_registered_snapshot = agent_config_registrations._REGISTERED
+    definition_registered_snapshot = agent_definition_registrations._REGISTERED
 
     StepCatalog._steps.clear()
-    AgentConfigCatalog._resolvers.clear()
+    AgentDefinitionCatalog._resolvers.clear()
+    ChoiceDefinitionCatalog._resolvers.clear()
     PipelineRegistry._pipelines.clear()
     temporal_activities._TRANSFORMED_STEP_ACTIVITIES.clear()
     step_registrations._REGISTERED = False
-    agent_config_registrations._REGISTERED = False
+    agent_definition_registrations._REGISTERED = False
 
     yield
 
     StepCatalog._steps.clear()
     StepCatalog._steps.update(step_snapshot)
 
-    AgentConfigCatalog._resolvers.clear()
-    AgentConfigCatalog._resolvers.update(config_snapshot)
+    AgentDefinitionCatalog._resolvers.clear()
+    AgentDefinitionCatalog._resolvers.update(definition_snapshot)
+
+    ChoiceDefinitionCatalog._resolvers.clear()
+    ChoiceDefinitionCatalog._resolvers.update(choice_definition_snapshot)
 
     PipelineRegistry._pipelines.clear()
     PipelineRegistry._pipelines.update(pipeline_snapshot)
@@ -79,7 +85,7 @@ def reset_catalog_singletons() -> None:
     temporal_activities._TRANSFORMED_STEP_ACTIVITIES.update(activity_snapshot)
 
     step_registrations._REGISTERED = step_registered_snapshot
-    agent_config_registrations._REGISTERED = config_registered_snapshot
+    agent_definition_registrations._REGISTERED = definition_registered_snapshot
 
 
 @pytest.fixture

@@ -1,5 +1,9 @@
 # Agents test harness
 
+The library source lives in `src/`. Install the project in editable mode before running tests so `agents` resolves
+to `src/`. Pytest adds the repository root for test settings. Run tests from
+the repository root.
+
 ## Commands
 
 Local (includes live tests):
@@ -46,7 +50,7 @@ The focused Codex test requires:
   normal CLI login flow. The framework does not accept or store a Codex API
   key.
 - `uv` in `PATH`. The runner creates an isolated environment, installs the
-  package with its pinned driver revision, and uses an in-memory SQLite test
+  package with its configured driver dependency, and uses an in-memory SQLite test
   database.
 - An optional `CODEX_LIVE_MODEL` value. Set it to record an explicit model in
   delivery evidence. When unset, Codex uses its configured default model.
@@ -54,14 +58,13 @@ The focused Codex test requires:
 The broader live suite also requires:
 
 - Docker with Compose support.
-- `OPENAI_API_KEY` for the separate Pydantic AI live test.
 - A reachable endpoint at `TEMPORAL_SERVER_URL` for the separate Temporal live
   test.
 
 The Codex test runs from the repository working directory and uses a
 180-second timeout.
 Production calls can set `codex_working_dir` and `codex_timeout_seconds` in
-`AgentConfig.extra_kwargs`; their defaults are the current directory and 300
+`AgentDefinition.extra_kwargs`; their defaults are the current directory and 300
 seconds.
 
 The runner requests the `read-only` Codex sandbox. This does not isolate the

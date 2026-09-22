@@ -5,8 +5,8 @@ import asyncio
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from agents.core.tools import ToolExecutionError, ToolRegistry
-from agents.runner.tools.mcp.adapter import build_tool_adapter
+from agents.runner.tools import ToolExecutionError, ToolRegistry
+from agents.adapters.tools.mcp.adapter import build_tool_adapter
 
 from tests.unit._toolsets import EchoOutput, EchoToolSet, FailingTool
 

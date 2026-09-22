@@ -59,10 +59,6 @@ MIGRATION_MODULES = {
     "agents": None,
 }
 
-DEFAULT_AGENT_CONFIG = {
-    "model": os.environ.get("OPENAI_MODEL", "gpt-4o"),
-}
-
 TEMPORAL_SERVER_URL = os.environ.get("TEMPORAL_SERVER_URL", "localhost:7233")
 TEMPORAL_TASK_QUEUE = os.environ.get("TEMPORAL_TASK_QUEUE", "ai-pipeline-queue")
 AGENTS_TEMPORAL_PLUGIN_MODULES = [

@@ -6,7 +6,7 @@ import os
 
 from pydantic import BaseModel
 
-from agents.core.tools import ToolExecutionError, ToolSet, tool
+from agents.tools import ToolExecutionError, ToolSet, tool
 
 
 class EchoInput(BaseModel):

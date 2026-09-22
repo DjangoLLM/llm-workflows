@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from agents.core import AgentConfig
-from agents.core.agent_config_catalog import AgentConfigCatalog
-from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
-from agents.core.step_catalog import StepCatalog, StepExecutionType
-from agents.runner.temporal.activities import execute_pipeline_step_activity
+from agents.inferences.agents import AgentDefinition
+from agents.catalog.agent_definition_catalog import AgentDefinitionCatalog
+from agents.runner.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.catalog.step_catalog import StepCatalog, StepExecutionType
+from agents.adapters.temporal.activities import execute_pipeline_step_activity
 from agents.models import AgentRunStatus, PipelineStep as PipelineStepModel, PipelineStatus
 
 
@@ -78,20 +78,20 @@ def test_codex_pipeline_activity_returns_and_persists_structured_dict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     capture_path = _install_fake_codex(tmp_path, monkeypatch)
-    config = AgentConfig(
+    definition = AgentDefinition(
         instructions="Return a typed inference result.",
         execution_backend="codex_cli",
         result_type=_ActivityResult,
         extra_kwargs={"codex_working_dir": tmp_path},
     )
-    AgentConfigCatalog.register_agent_config("tests.typed-codex", lambda: config)
+    AgentDefinitionCatalog.register_agent_definition("tests.typed-codex", lambda: definition)
     PipelineRegistry.register(_TypedCodexPipeline)
     StepCatalog.register_step(
         "infer",
         _TypedCodexPipeline.name,
         _TypedCodexStep,
         StepExecutionType.LLM,
-        agent_config_key="tests.typed-codex",
+        agent_definition_key="tests.typed-codex",
     )
     StepCatalog.validate_registry()
     run_id = _TypedCodexPipeline.create_run({"question": "What happened?"})
@@ -111,7 +111,7 @@ def test_codex_pipeline_activity_returns_and_persists_structured_dict(
     }
     assert type(result) is dict
     assert result == expected
-    assert config.result_type is _ActivityResult
+    assert definition.result_type is _ActivityResult
 
     step = PipelineStepModel.objects.select_related("agent_run").get(
         run_id=run_id,

@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Literal, Optional
 
-from agents.core import (
-    AgentConfig,
-    Step,
-    StepExecutionType,
-    Workflow,
-    register_step,
-    register_workflow,
-)
-from agents.core.step_catalog import StepCatalog
-from agents.core.tools import default_registry
-from agents.core.workflow import WorkflowRegistry
+from pydantic import BaseModel, ConfigDict
+
+from agents.inferences.agents import AgentDefinition
+from agents.steps import Step
+from agents.workflows import Workflow
+from agents.catalog.step_catalog import StepExecutionType, register_step
+from agents.catalog.workflow_catalog import register_workflow
+from agents.catalog.step_catalog import StepCatalog
+from agents.runner.tools import default_registry
+from agents.catalog.workflow_catalog import WorkflowRegistry
 
 PIPELINE_NAME = "feedback.pipeline"
 CLEAN_STEP = "clean_text"
@@ -44,20 +43,28 @@ class EchoToolStep(Step):
         return {**payload, "tool_result": result.model_dump()}
 
 
+class FeedbackAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sentiment: Literal["positive", "negative", "neutral"]
+    action_item: str
+    summary: str
+
+
 class AnalyzeFeedbackStep(Step):
     """Analyze cleaned feedback with a managed LLM agent."""
 
     @property
-    def agent_config(self) -> Optional[AgentConfig]:
-        return AgentConfig(
+    def agent_definition(self) -> Optional[AgentDefinition]:
+        return AgentDefinition(
             instructions=(
                 "You are a customer success AI. Read the customer feedback JSON. "
                 "Return a JSON object with exactly these keys: sentiment, action_item, "
                 "summary. sentiment must be one of positive, negative, or neutral. "
                 "action_item and summary must be concise strings."
             ),
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
-            result_type=dict,
+            model=os.environ.get("CODEX_MODEL") or None,
+            result_type=FeedbackAnalysis,
         )
 
 

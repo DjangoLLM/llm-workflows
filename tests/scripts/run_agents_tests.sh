@@ -60,7 +60,7 @@ export POSTGRES_DB
 export POSTGRES_PORT
 export POSTGRES_DATA_DIR
 
-export PYTHONPATH="${PYTHONPATH:-$AGENTS_DIR}"
+export PYTHONPATH="$AGENTS_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 printf "Starting ephemeral Postgres test container on port %s\n" "$POSTGRES_PORT"
 docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT" up -d --wait

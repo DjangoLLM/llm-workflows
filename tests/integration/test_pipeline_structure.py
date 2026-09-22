@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from agents.models import PipelineRun, PipelineStatus, PipelineStep as PipelineStepModel
-from agents.core.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
+from agents.runner.pipeline_structure import Pipeline, PipelineRegistry, PipelineStep
 
 
 class EchoStep(PipelineStep):

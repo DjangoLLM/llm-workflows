@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from agents.runner.choice import CRITERIA, HEAD, JevIf, collapse
-from agents.runner.temporal import activities
+from agents.adapters.temporal import activities
 
 RAW = {
     "choices": {HEAD: "true"},
@@ -13,17 +13,44 @@ RAW = {
 }
 
 
-def test_config_is_a_two_way_jev_head() -> None:
-    config = JevIf("The segment refers to a tracked task.", model="jev-latest").config
-    assert config.execution_backend == "jev"
-    assert config.instructions == "The segment refers to a tracked task."
-    assert config.model == "jev-latest"
-    assert config.questions == {HEAD: {"criteria": CRITERIA}}
+def test_runner_is_a_two_way_jev_head() -> None:
+    runner = JevIf("The segment refers to a tracked task.", model="jev-latest").runner
+    assert runner.adapter.instructions == "The segment refers to a tracked task."
+    assert runner.adapter.model == "jev-latest"
+    assert runner.adapter.questions == {HEAD: {"criteria": CRITERIA}}
 
 
 def test_empty_condition_is_rejected() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         JevIf("")
+
+
+@pytest.mark.django_db
+def test_choice_runner_preserves_managed_output(monkeypatch):
+    from types import SimpleNamespace
+    from agents.models import AgentRun, AgentRunStatus
+
+    monkeypatch.setattr(
+        "agents.adapters.inference.jev.JevRunner.run_sync",
+        lambda self, payload: SimpleNamespace(output=RAW),
+    )
+    assert JevIf("Is this a task?").decide({"text": "Fix login"})["result"] is True
+    run = AgentRun.objects.get()
+    assert run.status == AgentRunStatus.SUCCEEDED
+    assert run.output == RAW
+
+
+@pytest.mark.django_db
+def test_choice_runner_preserves_managed_failure(monkeypatch):
+    from agents.models import AgentRun, AgentRunStatus
+
+    def fail(self, payload):
+        raise ValueError("invalid selection")
+
+    monkeypatch.setattr("agents.adapters.inference.jev.JevRunner.run_sync", fail)
+    with pytest.raises(RuntimeError, match="invalid selection"):
+        JevIf("Is this a task?").decide({})
+    assert AgentRun.objects.get().status == AgentRunStatus.FAILED
 
 
 @pytest.mark.parametrize("choice, expected", [("true", True), ("false", False)])

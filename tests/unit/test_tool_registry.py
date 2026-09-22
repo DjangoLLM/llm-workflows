@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from agents.core.tools import (
+from agents.runner.tools import (
     ToolExecutionError,
     ToolRegistry,
     ToolSet,
@@ -162,8 +162,8 @@ def test_register_failure_leaves_registry_untouched(registry):
 
 
 def test_default_registry_is_module_level_singleton():
-    from agents.core.tools import default_registry as dr1
-    from agents.core.tools.registry import default_registry as dr2
+    from agents.runner.tools import default_registry as dr1
+    from agents.catalog.tool_catalog import default_registry as dr2
 
     assert dr1 is dr2
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from temporalio import activity
 
-from agents.runner.temporal.plugins.core import get_temporal_worker_plugin
+from agents.adapters.temporal.plugins.core import get_temporal_worker_plugin
 
 
 def test_core_plugin_includes_static_and_generated_activities(monkeypatch) -> None:
@@ -15,7 +15,7 @@ def test_core_plugin_includes_static_and_generated_activities(monkeypatch) -> No
         return {"b": True}
 
     monkeypatch.setattr(
-        "agents.runner.temporal.plugins.core.get_registered_step_activities",
+        "agents.adapters.temporal.plugins.core.get_registered_step_activities",
         lambda: [generated_a, generated_b],
     )
 

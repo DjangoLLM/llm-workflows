@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from agents.core import (
-    AgentConfig,
-    Step,
-    StepExecutionType,
-    ToolSet,
-    Workflow,
-    register_step,
-    register_toolset,
-    register_workflow,
-    tool,
-)
-from agents.core.step_catalog import StepCatalog
-from agents.core.tools import default_registry
-from agents.core.workflow import WorkflowRegistry
+from agents.tools import ToolSet, tool
+from agents.catalog.tool_catalog import register_toolset
+
+from agents.inferences.agents import AgentDefinition
+from agents.steps import Step
+from agents.workflows import Workflow
+from agents.catalog.step_catalog import StepExecutionType, register_step
+from agents.catalog.workflow_catalog import register_workflow
+from agents.catalog.step_catalog import StepCatalog
+from agents.catalog.tool_catalog import default_registry
+from agents.catalog.workflow_catalog import WorkflowRegistry
 from agents.runner import create_workflow_run
 from pydantic import BaseModel
 import pytest
@@ -67,10 +64,10 @@ def test_core_registers_author_definitions(monkeypatch) -> None:
     assert StepCatalog.get_step("echo").step_class is DemoStep
 
 
-def test_agent_config_is_a_definition_primitive() -> None:
-    config = AgentConfig(instructions="Return the value.", toolsets=[DemoTools.name])
+def test_agent_definition_is_a_definition_primitive() -> None:
+    definition = AgentDefinition(instructions="Return the value.", toolsets=[DemoTools.name])
 
-    assert config.toolsets == [DemoTools.name]
+    assert definition.toolsets == [DemoTools.name]
 
 
 def test_runner_rejects_an_unregistered_workflow() -> None:

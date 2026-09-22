@@ -7,7 +7,7 @@ import agents
 
 def test_agents_lazy_exports_resolve_known_symbols() -> None:
     assert agents.Agent is not None
-    assert agents.AgentConfig is not None
+    assert agents.AgentDefinition is not None
     assert agents.ManagedAgent is not None
     assert agents.AgentRunStatus is not None
     assert agents.run_agent is not None

@@ -91,6 +91,41 @@
       background: #12598f;
     }
 
+    button:disabled {
+      background: #8fa9bf;
+      cursor: progress;
+    }
+
+    button:focus-visible, textarea:focus-visible, summary:focus-visible {
+      outline: 2px solid #1769aa;
+      outline-offset: 2px;
+    }
+
+    .badge.RUNNING {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      50% { opacity: 0.45; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .badge.RUNNING { animation: none; }
+    }
+
+    .hint {
+      color: #8a1f1f;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 17px;
+      margin: 20px 0 10px;
+    }
+
     .error {
       border: 1px solid #f0b4b4;
       background: #fff5f5;
@@ -135,11 +170,6 @@
       color: #9c2f28;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
 
     .step {
       padding: 16px;
@@ -181,9 +211,6 @@
         padding: 18px;
       }
 
-      .grid {
-        grid-template-columns: 1fr;
-      }
     }
   </style>
 </head>
@@ -199,7 +226,7 @@
     {% endif %}
 
     <section class="panel">
-      <form method="post" action="{% url 'feedback:start' %}">
+      <form method="post" action="{% url 'feedback:start' %}" onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = 'Starting…';">
         {% csrf_token %}
         <label for="feedback_text">Customer feedback</label>
         <textarea id="feedback_text" name="feedback_text" placeholder="The setup was easy, but the invoice page is confusing.">{{ submitted_text }}</textarea>
@@ -216,20 +243,19 @@
         </div>
         <p class="muted">Run ID: {{ run.id }}</p>
 
-        <div class="grid">
-          <div>
-            <h2>Steps</h2>
-            <div id="steps">
-              <p class="muted">Waiting for the worker to pick up the workflow.</p>
-            </div>
-          </div>
-          <div>
-            <h2>Final result</h2>
-            <pre id="final-output">Waiting for completion...</pre>
-            <h2>Backend detail</h2>
-            <pre id="backend-detail">{}</pre>
-          </div>
+        <h2>Final result</h2>
+        <p class="hint" id="final-hint" hidden></p>
+        <pre id="final-output">Waiting for completion...</pre>
+
+        <h2>Steps</h2>
+        <div id="steps">
+          <p class="muted">Waiting for the worker to pick up the workflow.</p>
         </div>
+
+        <details>
+          <summary>Backend detail</summary>
+          <pre id="backend-detail">{}</pre>
+        </details>
       </section>
     {% endif %}
   </main>
@@ -242,6 +268,7 @@
       const currentStep = document.getElementById("current-step");
       const stepsContainer = document.getElementById("steps");
       const finalOutput = document.getElementById("final-output");
+      const finalHint = document.getElementById("final-hint");
       const backendDetail = document.getElementById("backend-detail");
 
       function pretty(value) {
@@ -266,7 +293,17 @@
           return;
         }
 
+        // Each retry writes its own ledger row; label them so three FAILED
+        // cards read as one step retried, not three broken steps.
+        const attempts = {};
+        steps.forEach((step) => { attempts[step.step_name] = (attempts[step.step_name] || 0) + 1; });
+        const seen = {};
+
         stepsContainer.innerHTML = steps.map((step) => {
+          seen[step.step_name] = (seen[step.step_name] || 0) + 1;
+          const attempt = attempts[step.step_name] > 1
+            ? `<span class="muted">attempt ${seen[step.step_name]} of ${attempts[step.step_name]}</span>`
+            : "";
           const agent = step.agent_run
             ? `<p class="muted">Agent: ${escapeHtml(step.agent_run.status)}</p>`
             : "";
@@ -280,7 +317,7 @@
           return `
             <article class="step">
               <h3>
-                <span>${step.order_index + 1}. ${escapeHtml(step.step_name)}</span>
+                <span>${step.order_index + 1}. ${escapeHtml(step.step_name)} ${attempt}</span>
                 <span class="badge ${escapeHtml(step.status)}">${escapeHtml(step.status)}</span>
               </h3>
               ${agent}
@@ -300,13 +337,20 @@
         const payload = await response.json();
         runStatus.textContent = payload.run.status;
         runStatus.className = `badge ${payload.run.status}`;
-        currentStep.textContent = `Current step: ${payload.run.current_step || "complete"}`;
+        currentStep.hidden = payload.is_terminal;
+        currentStep.textContent = `Current step: ${payload.run.current_step || "queued"}`;
         renderSteps(payload.steps);
         backendDetail.textContent = pretty(payload);
 
         if (payload.final_output) {
           finalOutput.textContent = pretty(payload.final_output);
         } else if (payload.error) {
+          const failed = payload.steps.filter((s) => s.status === "FAILED");
+          const last = failed[failed.length - 1];
+          finalHint.hidden = false;
+          finalHint.textContent =
+            `${last ? last.step_name : "The pipeline"} failed after ${failed.length} attempt(s). ` +
+            "Check the worker logs and Codex CLI sign-in, then submit again.";
           finalOutput.textContent = payload.error;
         }
 

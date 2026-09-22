@@ -5,11 +5,12 @@ from __future__ import annotations
 from datetime import timedelta
 
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 
-from agents.runner.temporal.worker_plugins import TemporalWorkerPlugin
+from agents.adapters.temporal.worker_plugins import TemporalWorkerPlugin
 
 with workflow.unsafe.imports_passed_through():
-    from agents.runner.temporal.activities import (
+    from agents.adapters.temporal.activities import (
         create_pipeline_run_activity,
         execute_pipeline_step_activity,
         mark_pipeline_failed_activity,
@@ -17,6 +18,11 @@ with workflow.unsafe.imports_passed_through():
     )
     from feedback.pipelines import ANALYZE_STEP, CLEAN_STEP, ECHO_STEP, PIPELINE_NAME
     from feedback.pipelines import register_feedback_pipeline
+
+
+# Quota/auth errors from the LLM are not transient; without a cap Temporal
+# retries forever and the run never reaches FAILED.
+STEP_RETRY = RetryPolicy(maximum_attempts=3)
 
 
 @workflow.defn(name="feedback.pipeline.workflow")
@@ -38,18 +44,21 @@ class FeedbackPipelineWorkflow:
                 execute_pipeline_step_activity,
                 args=[run_id, PIPELINE_NAME, CLEAN_STEP, 0, step_payload],
                 start_to_close_timeout=timedelta(minutes=1),
+                retry_policy=STEP_RETRY,
             )
 
             echo_data = await workflow.execute_activity(
                 execute_pipeline_step_activity,
                 args=[run_id, PIPELINE_NAME, ECHO_STEP, 1, cleaned_data],
                 start_to_close_timeout=timedelta(minutes=1),
+                retry_policy=STEP_RETRY,
             )
 
             analysis_result = await workflow.execute_activity(
                 execute_pipeline_step_activity,
                 args=[run_id, PIPELINE_NAME, ANALYZE_STEP, 2, echo_data],
                 start_to_close_timeout=timedelta(minutes=2),
+                retry_policy=STEP_RETRY,
             )
 
             await workflow.execute_activity(

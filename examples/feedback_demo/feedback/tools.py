@@ -1,14 +1,14 @@
 """Demo ToolSet illustrating how a host app exposes tools via the registry.
 
 The toolset is registered in `FeedbackConfig.ready()`; this module only
-declares it. Validates the boot path for `agents.runner.tools.mcp` / `run_tools_mcp`.
+declares it. Validates the boot path for `agents.adapters.tools.mcp` / `run_tools_mcp`.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel
 
-from agents.core import ToolSet, tool
+from agents.tools import ToolSet, tool
 
 
 class EchoInput(BaseModel):

@@ -1,0 +1,160 @@
+<div id="freedom-workflow-console">
+  <style>
+    #freedom-workflow-console {
+      --fw-bg: light-dark(#f4f1eb, #171713);
+      --fw-panel: light-dark(#fffdf8, #23231e);
+      --fw-panel-2: light-dark(#eee9df, #2c2c26);
+      --fw-text: light-dark(#22221e, #f3f0e8);
+      --fw-muted: light-dark(#69675f, #aaa79e);
+      --fw-line: light-dark(#d2cdc2, #47463e);
+      --fw-accent: light-dark(#175e54, #67c8b4);
+      --fw-success: light-dark(#2d7350, #77c797);
+      --fw-running: light-dark(#a45d13, #e5a657);
+      --fw-failed: light-dark(#a33a32, #ef8178);
+      color: var(--fw-text);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--fw-bg);
+      min-height: 650px;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    #freedom-workflow-console * { box-sizing: border-box; }
+    #freedom-workflow-console button { font: inherit; }
+    #freedom-workflow-console .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 18px; background: var(--fw-panel); border-bottom: 1px solid var(--fw-line);
+    }
+    #freedom-workflow-console .brand { font-weight: 500; letter-spacing: .01em; }
+    #freedom-workflow-console .crumb { color: var(--fw-muted); font-weight: 400; }
+    #freedom-workflow-console .actions, #freedom-workflow-console .tabs { display: flex; gap: 8px; align-items: center; }
+    #freedom-workflow-console .ctl {
+      border: 1px solid var(--fw-line); color: var(--fw-text); background: var(--fw-panel);
+      border-radius: 7px; padding: 8px 11px;
+    }
+    #freedom-workflow-console .ctl.primary { background: var(--fw-accent); color: var(--fw-panel); border-color: transparent; }
+    #freedom-workflow-console .body { display: grid; grid-template-columns: 210px minmax(0, 1fr) 300px; min-height: 590px; }
+    #freedom-workflow-console .sidebar, #freedom-workflow-console .inspector { background: var(--fw-panel); padding: 16px; }
+    #freedom-workflow-console .sidebar { border-right: 1px solid var(--fw-line); }
+    #freedom-workflow-console .inspector { border-left: 1px solid var(--fw-line); }
+    #freedom-workflow-console h2, #freedom-workflow-console h3, #freedom-workflow-console p { margin-top: 0; }
+    #freedom-workflow-console h2 { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+    #freedom-workflow-console h3 { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+    #freedom-workflow-console .muted { color: var(--fw-muted); }
+    #freedom-workflow-console .workflow-list { display: grid; gap: 5px; }
+    #freedom-workflow-console .workflow-item {
+      width: 100%; text-align: left; border: 0; border-radius: 7px; padding: 9px;
+      color: var(--fw-text); background: transparent;
+    }
+    #freedom-workflow-console .workflow-item.active { background: var(--fw-panel-2); }
+    #freedom-workflow-console .main { padding: 16px 18px; min-width: 0; }
+    #freedom-workflow-console .main-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 18px; }
+    #freedom-workflow-console .main-head h1 { font-size: 21px; font-weight: 500; margin: 0 0 4px; }
+    #freedom-workflow-console .tab {
+      border: 0; border-bottom: 2px solid transparent; color: var(--fw-muted); background: transparent; padding: 7px 4px;
+    }
+    #freedom-workflow-console .tab.active { color: var(--fw-text); border-color: var(--fw-accent); }
+    #freedom-workflow-console .graph { position: relative; min-height: 405px; padding: 26px 10px; overflow: hidden; }
+    #freedom-workflow-console .edge { position: absolute; height: 2px; background: var(--fw-line); transform-origin: left center; z-index: 0; }
+    #freedom-workflow-console .edge.active { background: var(--fw-success); }
+    #freedom-workflow-console .node {
+      position: absolute; width: 150px; min-height: 76px; text-align: left; padding: 11px 12px;
+      border-radius: 9px; border: 1px solid var(--fw-line); background: var(--fw-panel); color: var(--fw-text); z-index: 1;
+    }
+    #freedom-workflow-console .node.selected { box-shadow: 0 0 0 2px var(--fw-accent); }
+    #freedom-workflow-console .node .kind { color: var(--fw-muted); font-size: 12px; display: block; margin-top: 4px; }
+    #freedom-workflow-console .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--fw-line); }
+    #freedom-workflow-console .succeeded .dot { background: var(--fw-success); }
+    #freedom-workflow-console .running .dot { background: var(--fw-running); }
+    #freedom-workflow-console .failed .dot { background: var(--fw-failed); }
+    #freedom-workflow-console .n1 { left: 4%; top: 150px; }
+    #freedom-workflow-console .n2 { left: 36%; top: 150px; }
+    #freedom-workflow-console .n3 { right: 3%; top: 150px; }
+    #freedom-workflow-console .e1 { left: calc(4% + 150px); top: 188px; width: calc(32% - 150px); }
+    #freedom-workflow-console .e2 { left: calc(36% + 150px); top: 188px; width: calc(61% - 36% - 150px); }
+    #freedom-workflow-console .timeline { border-top: 1px solid var(--fw-line); padding-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    #freedom-workflow-console .time-item { font-size: 12px; color: var(--fw-muted); }
+    #freedom-workflow-console .time-item strong { display: block; color: var(--fw-text); font-weight: 500; margin-bottom: 3px; }
+    #freedom-workflow-console .kv { display: grid; grid-template-columns: 88px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--fw-line); font-size: 13px; }
+    #freedom-workflow-console .kv span:first-child { color: var(--fw-muted); }
+    #freedom-workflow-console pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--fw-panel-2); border-radius: 7px; padding: 10px; font-size: 12px; color: var(--fw-text); }
+    #freedom-workflow-console .run-list { display: none; }
+    #freedom-workflow-console .run-row { display: grid; grid-template-columns: 1fr 120px 110px; gap: 12px; padding: 13px 6px; border-bottom: 1px solid var(--fw-line); }
+    @media (max-width: 780px) {
+      #freedom-workflow-console .body { grid-template-columns: 1fr; }
+      #freedom-workflow-console .sidebar { display: none; }
+      #freedom-workflow-console .inspector { border-left: 0; border-top: 1px solid var(--fw-line); }
+      #freedom-workflow-console .node { width: 122px; }
+      #freedom-workflow-console .e1 { left: calc(4% + 122px); width: calc(32% - 122px); }
+      #freedom-workflow-console .e2 { left: calc(36% + 122px); width: calc(61% - 36% - 122px); }
+    }
+  </style>
+  <div class="topbar">
+    <div class="brand">Freedom Agents <span class="crumb">/ Workflows</span></div>
+    <div class="actions"><button class="ctl" type="button">Pause schedule</button><button class="ctl primary" type="button">Run workflow</button></div>
+  </div>
+  <div class="body">
+    <aside class="sidebar">
+      <h2>Workflows</h2>
+      <div class="workflow-list">
+        <button class="workflow-item active" type="button">feedback.pipeline</button>
+        <button class="workflow-item" type="button">research.pipeline</button>
+        <button class="workflow-item" type="button">doc.review</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="main-head">
+        <div><h1>feedback.pipeline</h1><span class="muted">Run 8f42 · running for 18s</span></div>
+        <div class="tabs" role="tablist" aria-label="Workflow view">
+          <button class="tab active" type="button" data-view="graph">Graph</button>
+          <button class="tab" type="button" data-view="runs">Runs</button>
+        </div>
+      </div>
+      <section class="graph" aria-label="Workflow execution graph">
+        <div class="edge active e1"></div><div class="edge e2"></div>
+        <button class="node succeeded n1" type="button" data-node="clean_text"><span><span class="dot"></span>clean_text</span><span class="kind">Code · 42 ms</span></button>
+        <button class="node succeeded n2" type="button" data-node="echo_tool"><span><span class="dot"></span>echo_tool</span><span class="kind">Tool · 91 ms</span></button>
+        <button class="node running n3 selected" type="button" data-node="analyze"><span><span class="dot"></span>analyze</span><span class="kind">Agent · attempt 2</span></button>
+      </section>
+      <section class="run-list" aria-label="Workflow runs">
+        <div class="run-row"><strong>8f42</strong><span style="color:var(--fw-running)">Running</span><span>18s</span></div>
+        <div class="run-row"><strong>218c</strong><span style="color:var(--fw-success)">Succeeded</span><span>24s</span></div>
+        <div class="run-row"><strong>de91</strong><span style="color:var(--fw-failed)">Failed</span><span>1m 08s</span></div>
+      </section>
+      <div class="timeline">
+        <div class="time-item"><strong>clean_text</strong>12:04:10.142</div>
+        <div class="time-item"><strong>echo_tool</strong>12:04:10.219</div>
+        <div class="time-item"><strong>analyze</strong>12:04:10.344 · retrying</div>
+      </div>
+    </main>
+    <aside class="inspector" aria-live="polite">
+      <h2 id="inspect-title">analyze</h2>
+      <div id="inspect-content"></div>
+    </aside>
+  </div>
+  <script>
+    (() => {
+      const root = document.getElementById('freedom-workflow-console');
+      const details = {
+        clean_text: {status:'Succeeded', type:'Code step', attempt:'1 of 1', duration:'42 ms', payload:'{"cleaned_text":"invoice page is confusing"}'},
+        echo_tool: {status:'Succeeded', type:'Tool step', attempt:'1 of 1', duration:'91 ms', payload:'{"tool_result":{"text":"invoice page is confusing"}}'},
+        analyze: {status:'Running', type:'Agent step', attempt:'2 of 3', duration:'17.8 s', payload:'{"model":"gpt-4o","result_type":"FeedbackAnalysis"}'}
+      };
+      const title = root.querySelector('#inspect-title');
+      const content = root.querySelector('#inspect-content');
+      function render(name) {
+        const d = details[name]; title.textContent = name;
+        content.innerHTML = `<div class="kv"><span>Status</span><strong>${d.status}</strong></div><div class="kv"><span>Type</span><span>${d.type}</span></div><div class="kv"><span>Attempt</span><span>${d.attempt}</span></div><div class="kv"><span>Duration</span><span>${d.duration}</span></div><h3 style="margin-top:18px">Input and output</h3><pre>${d.payload}</pre><div class="actions"><button class="ctl" type="button">View event history</button>${name === 'analyze' ? '<button class="ctl" type="button">Cancel</button>' : ''}</div>`;
+      }
+      root.querySelectorAll('.node').forEach(node => node.addEventListener('click', () => {
+        root.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+        node.classList.add('selected'); render(node.dataset.node);
+      }));
+      root.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+        root.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active');
+        root.querySelector('.graph').style.display = tab.dataset.view === 'graph' ? 'block' : 'none';
+        root.querySelector('.run-list').style.display = tab.dataset.view === 'runs' ? 'block' : 'none';
+      }));
+      render('analyze');
+    })();
+  </script>
+</div>

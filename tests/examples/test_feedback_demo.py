@@ -13,13 +13,14 @@ if str(DEMO_DIR) not in sys.path:
     sys.path.insert(0, str(DEMO_DIR))
 
 from agents.models import AgentRun, AgentRunStatus, PipelineRun, PipelineStatus, PipelineStep
-from agents.core.pipeline_structure import PipelineRegistry
-from agents.core.step_catalog import StepCatalog, StepExecutionType
+from agents.runner.pipeline_structure import PipelineRegistry
+from agents.catalog.step_catalog import StepCatalog, StepExecutionType
 from feedback.pipelines import (
     ANALYZE_STEP,
     CLEAN_STEP,
     PIPELINE_NAME,
     FeedbackWorkflow,
+    FeedbackAnalysis,
     register_feedback_pipeline,
 )
 from feedback.temporal_plugin import get_temporal_worker_plugin
@@ -43,7 +44,9 @@ def test_feedback_temporal_plugin_registers_pipeline_before_building() -> None:
     analyze_registration = StepCatalog.get_step(ANALYZE_STEP)
     assert analyze_registration.pipeline_name == PIPELINE_NAME
     analyze_step = analyze_registration.step_class.__new__(analyze_registration.step_class)
-    assert analyze_step.agent_config.result_type is dict
+    assert analyze_step.agent_definition.result_type is FeedbackAnalysis
+    from agents.adapters.inference.codex import CodexRunner
+    CodexRunner.from_definition(analyze_step.agent_definition)
 
 
 @pytest.mark.django_db
@@ -91,7 +94,8 @@ def test_run_status_serializes_steps_and_agent_run() -> None:
 
 
 @pytest.mark.django_db
-def test_start_view_validates_feedback_text() -> None:
+def test_start_view_validates_feedback_text(settings) -> None:
+    settings.ROOT_URLCONF = "feedback_demo.urls"
     request = RequestFactory().post("/start/", {"feedback_text": "   "})
 
     response = start(request)

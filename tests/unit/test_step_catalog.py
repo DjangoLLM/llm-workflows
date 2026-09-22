@@ -4,16 +4,17 @@ from typing import Optional
 
 import pytest
 
-from agents.core import AgentConfig
-from agents.core.agent_config_catalog import AgentConfigCatalog
-from agents.core.pipeline_structure import PipelineStep
-from agents.core.step_catalog import StepCatalog, StepExecutionType
+from agents.inferences.agents import AgentDefinition
+from agents.catalog.agent_definition_catalog import AgentDefinitionCatalog
+from agents.runner.pipeline_structure import PipelineStep
+from agents.runner.step_dispatch import StepDispatcher
+from agents.catalog.step_catalog import StepCatalog, StepExecutionType
 
 
 class LLMStep(PipelineStep):
     @property
-    def agent_config(self) -> AgentConfig:
-        return AgentConfig(instructions="llm")
+    def agent_definition(self) -> AgentDefinition:
+        return AgentDefinition(instructions="llm")
 
 
 class BareLLMStep(PipelineStep):
@@ -49,7 +50,7 @@ class FakePipeline:
         payload,
         order_index,
         parent_ids=None,
-        agent_config=None,
+        agent_definition=None,
     ):
         FakePipeline.last_call = {
             "run_id": run_id,
@@ -57,7 +58,7 @@ class FakePipeline:
             "payload": payload,
             "order_index": order_index,
             "parent_ids": parent_ids,
-            "agent_config": agent_config,
+            "agent_definition": agent_definition,
         }
         return {"ran": True}
 
@@ -76,15 +77,15 @@ def test_register_rejects_duplicate_step_key() -> None:
 
 def test_validate_rejects_non_pipeline_step_class(monkeypatch) -> None:
     StepCatalog.register_step("bad", "fake", NotAPipelineStep, StepExecutionType.CODE)
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: FakePipeline)
 
-    with pytest.raises(TypeError, match="must inherit PipelineStep"):
+    with pytest.raises(TypeError, match="must inherit Step"):
         StepCatalog.validate_registry()
 
 
 def test_validate_rejects_missing_pipeline_mapping(monkeypatch) -> None:
     StepCatalog.register_step("llm", "missing", LLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: MissingKeyPipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: MissingKeyPipeline)
 
     with pytest.raises(ValueError, match="missing from pipeline"):
         StepCatalog.validate_registry()
@@ -92,18 +93,18 @@ def test_validate_rejects_missing_pipeline_mapping(monkeypatch) -> None:
 
 def test_validate_rejects_llm_without_config(monkeypatch) -> None:
     StepCatalog.register_step("bare", "fake", BareLLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: FakePipeline)
 
-    with pytest.raises(ValueError, match="requires agent_config_key or agent_config property"):
+    with pytest.raises(ValueError, match="requires agent_definition_key or agent_definition property"):
         StepCatalog.validate_registry()
 
 
 def test_execute_step_rejects_pipeline_mismatch(monkeypatch) -> None:
     StepCatalog.register_step("llm", "fake", LLMStep, StepExecutionType.LLM)
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: FakePipeline)
 
     with pytest.raises(ValueError, match="belongs to 'fake', not 'other'"):
-        StepCatalog.execute_step(
+        StepDispatcher.execute_step(
             run_id="run-1",
             pipeline_name="other",
             step_key="llm",
@@ -112,18 +113,18 @@ def test_execute_step_rejects_pipeline_mismatch(monkeypatch) -> None:
         )
 
 
-def test_execute_step_resolves_agent_config_from_catalog(monkeypatch) -> None:
-    AgentConfigCatalog.register_agent_config("cfg", lambda: AgentConfig(instructions="from catalog"))
+def test_execute_step_resolves_agent_definition_from_catalog(monkeypatch) -> None:
+    AgentDefinitionCatalog.register_agent_definition("cfg", lambda: AgentDefinition(instructions="from catalog"))
     StepCatalog.register_step(
         "llm",
         "fake",
         LLMStep,
         StepExecutionType.LLM,
-        agent_config_key="cfg",
+        agent_definition_key="cfg",
     )
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: FakePipeline)
 
-    result = StepCatalog.execute_step(
+    result = StepDispatcher.execute_step(
         run_id="run-2",
         pipeline_name="fake",
         step_key="llm",
@@ -132,15 +133,15 @@ def test_execute_step_resolves_agent_config_from_catalog(monkeypatch) -> None:
     )
 
     assert result == {"ran": True}
-    assert isinstance(FakePipeline.last_call["agent_config"], AgentConfig)
+    assert isinstance(FakePipeline.last_call["agent_definition"], AgentDefinition)
     assert FakePipeline.last_call["step_key"] == "llm"
 
 
-def test_execute_step_for_code_step_has_no_agent_config(monkeypatch) -> None:
+def test_execute_step_for_code_step_has_no_agent_definition(monkeypatch) -> None:
     StepCatalog.register_step("code", "fake", CodeStep, StepExecutionType.CODE)
-    monkeypatch.setattr("agents.core.step_catalog.PipelineRegistry.get", lambda _name: FakePipeline)
+    monkeypatch.setattr("agents.catalog.step_catalog.WorkflowRegistry.get", lambda _name: FakePipeline)
 
-    result = StepCatalog.execute_step(
+    result = StepDispatcher.execute_step(
         run_id="run-3",
         pipeline_name="fake",
         step_key="code",
@@ -149,7 +150,7 @@ def test_execute_step_for_code_step_has_no_agent_config(monkeypatch) -> None:
     )
 
     assert result == {"ran": True}
-    assert FakePipeline.last_call["agent_config"] is None
+    assert FakePipeline.last_call["agent_definition"] is None
 
 
 def test_get_step_rejects_unknown_key() -> None:

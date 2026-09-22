@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from agents.core import AgentConfig
-from agents.core.pipeline_structure import Pipeline, PipelineStep
+from agents.inferences.agents import AgentDefinition
+from agents.runner.pipeline_structure import Pipeline, PipelineStep
 
 
 @dataclass
@@ -28,8 +28,8 @@ class FakeAgentFailure:
 
 class FakeLLMStep(PipelineStep):
     @property
-    def agent_config(self) -> AgentConfig:
-        return AgentConfig(instructions="stub llm")
+    def agent_definition(self) -> AgentDefinition:
+        return AgentDefinition(instructions="stub llm")
 
 
 class FakeCodeStep(PipelineStep):
