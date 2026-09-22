@@ -10,11 +10,7 @@ These documents persist as the product evolves. They are not disposable implemen
 
 ## Active specs
 
-- [Source layout](source-layout.md): retirement pending. Library moved directly into `src`; 282 non-live tests and clean package build passed. Preserve the untracked spec until its exact content is recoverable from Git.
-
-- [Public authoring layout](public-authoring-layout.md): retirement pending. Public imports now match application concepts; 282 non-live tests and a clean package build passed. Preserve the untracked spec until its exact content is recoverable from Git.
-
-- [Inference base organization](inference-domain-split.md): retirement pending. Shared bases and separate adapter contracts implemented; 279 non-live tests and clean package build passed. Preserve the untracked spec until its exact content is recoverable from Git.
+None.
 
 When work is selected, add an entry here with the exact spec or ticket directory, its scope, and its status: design, implementing, verifying, or retirement pending. Activating a spec does not activate its parent folder or sibling tickets.
 
